@@ -1,0 +1,472 @@
+--// UNIVERSAL TEST HUB
+--// Rayfield + Fix Lag + Rainbow FPS + Spin + Fly
+--// Dùng cho game Roblox do bạn tạo
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+
+--==================================================
+-- RAYFIELD
+--==================================================
+
+local Rayfield = loadstring(game:HttpGet(
+    "https://sirius.menu/rayfield"
+))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Universal Test Hub",
+    LoadingTitle = "Universal Test Hub",
+    LoadingSubtitle = "Fix Lag • FPS • Spin • Fly",
+
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "UniversalTestHub",
+        FileName = "Settings"
+    }
+})
+
+local FixTab = Window:CreateTab("⚡ Fix Lag", 4483362458)
+local SpinTab = Window:CreateTab("🔄 Xoay", 4483362458)
+local FlyTab = Window:CreateTab("🪽 Fly", 4483362458)
+local FPSTab = Window:CreateTab("🌈 FPS", 4483362458)
+
+--==================================================
+-- FIX LAG
+--==================================================
+
+local function Optimize()
+
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+
+        for _, v in ipairs(Lighting:GetChildren()) do
+            if v:IsA("BloomEffect")
+            or v:IsA("BlurEffect")
+            or v:IsA("ColorCorrectionEffect")
+            or v:IsA("DepthOfFieldEffect")
+            or v:IsA("SunRaysEffect") then
+                v.Enabled = false
+            end
+        end
+    end)
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        pcall(function()
+
+            if obj:IsA("ParticleEmitter")
+            or obj:IsA("Trail")
+            or obj:IsA("Beam")
+            or obj:IsA("Smoke")
+            or obj:IsA("Fire")
+            or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+
+            if obj:IsA("PointLight")
+            or obj:IsA("SpotLight")
+            or obj:IsA("SurfaceLight") then
+                obj.Enabled = false
+            end
+
+            if obj:IsA("BasePart") then
+                obj.CastShadow = false
+            end
+
+        end)
+    end
+
+    pcall(function()
+        local Terrain = Workspace:FindFirstChildOfClass("Terrain")
+
+        if Terrain then
+            Terrain.Decoration = false
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 0.5
+        end
+    end)
+end
+
+FixTab:CreateToggle({
+    Name = "⚡ Fix Lag",
+    CurrentValue = false,
+    Flag = "FixLag",
+
+    Callback = function(Value)
+        if Value then
+            Optimize()
+        end
+    end
+})
+
+FixTab:CreateButton({
+    Name = "🚀 Ultra FPS Mode",
+
+    Callback = function()
+        Optimize()
+
+        pcall(function()
+            settings().Rendering.QualityLevel =
+                Enum.QualityLevel.Level01
+        end)
+
+        Rayfield:Notify({
+            Title = "Ultra FPS",
+            Content = "Đã tối ưu đồ họa.",
+            Duration = 3
+        })
+    end
+})
+
+--==================================================
+-- CHARACTER SPIN
+--==================================================
+
+local SpinEnabled = false
+local SpinSpeed = 100
+
+SpinTab:CreateToggle({
+    Name = "🔄 Xoay Người",
+    CurrentValue = false,
+    Flag = "SpinEnabled",
+
+    Callback = function(Value)
+        SpinEnabled = Value
+    end
+})
+
+SpinTab:CreateSlider({
+    Name = "⚡ Tốc Độ Xoay",
+    Range = {1, 500},
+    Increment = 1,
+    Suffix = " Speed",
+    CurrentValue = 100,
+    Flag = "SpinSpeed",
+
+    Callback = function(Value)
+        SpinSpeed = Value
+    end
+})
+
+RunService.RenderStepped:Connect(function(dt)
+
+    if not SpinEnabled then
+        return
+    end
+
+    local Character = Player.Character
+    if not Character then
+        return
+    end
+
+    local Root = Character:FindFirstChild("HumanoidRootPart")
+
+    if not Root then
+        return
+    end
+
+    local Camera = Workspace.CurrentCamera
+
+    if Camera then
+        local CameraCFrame = Camera.CFrame
+
+        Root.CFrame =
+            Root.CFrame *
+            CFrame.Angles(
+                0,
+                math.rad(SpinSpeed) * dt,
+                0
+            )
+
+        Camera.CFrame = CameraCFrame
+    end
+end)
+
+--==================================================
+-- FLY
+--==================================================
+
+local FlyEnabled = false
+local FlySpeed = 100
+
+local FlyVelocity
+local FlyConnection
+
+local function StopFly()
+
+    FlyEnabled = false
+
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+
+    if FlyVelocity then
+        FlyVelocity:Destroy()
+        FlyVelocity = nil
+    end
+
+    local Character = Player.Character
+
+    if Character then
+        local Humanoid =
+            Character:FindFirstChildOfClass("Humanoid")
+
+        if Humanoid then
+            Humanoid.PlatformStand = false
+        end
+    end
+end
+
+local function StartFly()
+
+    local Character = Player.Character
+    if not Character then
+        return
+    end
+
+    local Root =
+        Character:FindFirstChild("HumanoidRootPart")
+
+    local Humanoid =
+        Character:FindFirstChildOfClass("Humanoid")
+
+    if not Root or not Humanoid then
+        return
+    end
+
+    FlyEnabled = true
+
+    Humanoid.PlatformStand = true
+
+    FlyVelocity = Instance.new("BodyVelocity")
+
+    FlyVelocity.MaxForce =
+        Vector3.new(
+            math.huge,
+            math.huge,
+            math.huge
+        )
+
+    FlyVelocity.Velocity =
+        Vector3.zero
+
+    FlyVelocity.Parent = Root
+
+    FlyConnection =
+        RunService.RenderStepped:Connect(function()
+
+            if not FlyEnabled
+            or not Character.Parent
+            or not Root.Parent then
+
+                StopFly()
+                return
+            end
+
+            local Camera =
+                Workspace.CurrentCamera
+
+            if not Camera then
+                return
+            end
+
+            local MoveDirection =
+                Humanoid.MoveDirection
+
+            local Velocity =
+                Vector3.zero
+
+            if MoveDirection.Magnitude > 0 then
+                Velocity =
+                    MoveDirection.Unit *
+                    FlySpeed
+            end
+
+            -- Space = bay lên
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.Space
+            ) then
+                Velocity +=
+                    Vector3.new(
+                        0,
+                        FlySpeed,
+                        0
+                    )
+            end
+
+            -- Ctrl = hạ xuống
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.LeftControl
+            ) then
+                Velocity +=
+                    Vector3.new(
+                        0,
+                        -FlySpeed,
+                        0
+                    )
+            end
+
+            FlyVelocity.Velocity = Velocity
+
+        end)
+end
+
+FlyTab:CreateToggle({
+    Name = "🪽 Fly",
+    CurrentValue = false,
+    Flag = "FlyEnabled",
+
+    Callback = function(Value)
+
+        if Value then
+            StartFly()
+        else
+            StopFly()
+        end
+
+    end
+})
+
+FlyTab:CreateSlider({
+    Name = "🚀 Fly Speed",
+    Range = {1, 500},
+    Increment = 1,
+    Suffix = " Speed",
+    CurrentValue = 100,
+    Flag = "FlySpeed",
+
+    Callback = function(Value)
+        FlySpeed = Value
+    end
+})
+
+FlyTab:CreateLabel(
+    "Space: Bay lên | Ctrl: Hạ xuống"
+)
+
+--==================================================
+-- RAINBOW FPS
+--==================================================
+
+local FPSGui = Instance.new("ScreenGui")
+
+FPSGui.Name = "RainbowFPS"
+FPSGui.IgnoreGuiInset = true
+FPSGui.ResetOnSpawn = false
+FPSGui.DisplayOrder = 999999
+FPSGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+pcall(function()
+    FPSGui.Parent = game:GetService("CoreGui")
+end)
+
+if not FPSGui.Parent then
+    FPSGui.Parent =
+        Player:WaitForChild("PlayerGui")
+end
+
+local FPSLabel = Instance.new("TextLabel")
+
+FPSLabel.AnchorPoint =
+    Vector2.new(0.5, 0)
+
+FPSLabel.Position =
+    UDim2.new(0.5, 0, 0, 8)
+
+FPSLabel.Size =
+    UDim2.new(0, 180, 0, 40)
+
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.Text = "FPS: 0"
+FPSLabel.TextSize = 24
+FPSLabel.Font = Enum.Font.GothamBold
+FPSLabel.TextStrokeTransparency = 0
+FPSLabel.TextStrokeColor3 =
+    Color3.new(0, 0, 0)
+
+FPSLabel.ZIndex = 999999
+FPSLabel.Parent = FPSGui
+
+local Frames = 0
+local LastTime = os.clock()
+
+RunService.RenderStepped:Connect(function()
+
+    Frames += 1
+
+    local Now = os.clock()
+
+    if Now - LastTime >= 0.5 then
+
+        local FPS =
+            math.floor(
+                Frames /
+                (Now - LastTime)
+            )
+
+        Frames = 0
+        LastTime = Now
+
+        FPSLabel.Text =
+            "FPS: " .. FPS
+    end
+end)
+
+task.spawn(function()
+
+    local Hue = 0
+
+    while FPSGui.Parent do
+
+        Hue = (Hue + 0.003) % 1
+
+        FPSLabel.TextColor3 =
+            Color3.fromHSV(
+                Hue,
+                1,
+                1
+            )
+
+        task.wait()
+    end
+end)
+
+FPSTab:CreateToggle({
+    Name = "🌈 Rainbow FPS",
+    CurrentValue = true,
+    Flag = "RainbowFPS",
+
+    Callback = function(Value)
+        FPSGui.Enabled = Value
+    end
+})
+
+--==================================================
+-- RESPAWN SAFETY
+--==================================================
+
+Player.CharacterAdded:Connect(function()
+
+    if FlyEnabled then
+        StopFly()
+    end
+
+end)
+
+--==================================================
+-- START
+--==================================================
+
+Rayfield:Notify({
+    Title = "Universal Test Hub",
+    Content = "Đã tải đầy đủ chức năng!",
+    Duration = 5
+})
