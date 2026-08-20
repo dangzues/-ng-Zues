@@ -1,0 +1,393 @@
+--// ESP SYSTEM - Dùng cho game Roblox của bạn
+--// Đặt LocalScript trong StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+--========================
+-- SETTINGS
+--========================
+local Settings = {
+    ESP = true,
+    Boxes = true,
+    Names = true,
+    Distance = true,
+    Tracers = true,
+    Chams = true,
+    WallCheck = false,
+
+    ESPRange = 2000,
+
+    BoxColor = Color3.fromRGB(0, 255, 80),
+    TracerColor = Color3.fromRGB(0, 255, 80),
+    ChamsColor = Color3.fromRGB(0, 255, 80),
+
+    FOV = true,
+    FOVRadius = 180
+}
+
+--========================
+-- GUI
+--========================
+local GUI = Instance.new("ScreenGui")
+GUI.Name = "ESP_GUI"
+GUI.ResetOnSpawn = false
+GUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(330, 430)
+Main.Position = UDim2.new(1, -350, 0.5, -215)
+Main.BackgroundColor3 = Color3.fromRGB(25,25,25)
+Main.BackgroundTransparency = 0.08
+Main.BorderSizePixel = 0
+Main.Parent = GUI
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0,10)
+Corner.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1,0,0,45)
+Title.BackgroundTransparency = 1
+Title.Text = "ESP"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 24
+Title.Font = Enum.Font.GothamBold
+Title.Parent = Main
+
+local List = Instance.new("UIListLayout")
+List.Padding = UDim.new(0,6)
+List.HorizontalAlignment = Enum.HorizontalAlignment.Center
+List.SortOrder = Enum.SortOrder.LayoutOrder
+List.Parent = Main
+
+Title.LayoutOrder = 0
+
+--========================
+-- TOGGLE
+--========================
+local function AddToggle(text, setting)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.fromOffset(290,38)
+    Button.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    Button.TextColor3 = Color3.new(1,1,1)
+    Button.TextSize = 15
+    Button.Font = Enum.Font.Gotham
+    Button.AutoButtonColor = false
+    Button.Text = text .. ": " .. (Settings[setting] and "ON" or "OFF")
+    Button.Parent = Main
+
+    local C = Instance.new("UICorner")
+    C.CornerRadius = UDim.new(0,7)
+    C.Parent = Button
+
+    Button.MouseButton1Click:Connect(function()
+        Settings[setting] = not Settings[setting]
+        Button.Text = text .. ": " .. (Settings[setting] and "ON" or "OFF")
+    end)
+end
+
+AddToggle("ESP", "ESP")
+AddToggle("Boxes", "Boxes")
+AddToggle("Names", "Names")
+AddToggle("Distance", "Distance")
+AddToggle("Tracers", "Tracers")
+AddToggle("Chams", "Chams")
+AddToggle("Wall Check", "WallCheck")
+AddToggle("FOV Circle", "FOV")
+
+--========================
+-- RANGE
+--========================
+local RangeBox = Instance.new("TextBox")
+RangeBox.Size = UDim2.fromOffset(290,38)
+RangeBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+RangeBox.TextColor3 = Color3.new(1,1,1)
+RangeBox.PlaceholderText = "ESP Range"
+RangeBox.Text = tostring(Settings.ESPRange)
+RangeBox.TextSize = 15
+RangeBox.Font = Enum.Font.Gotham
+RangeBox.Parent = Main
+
+local RC = Instance.new("UICorner")
+RC.CornerRadius = UDim.new(0,7)
+RC.Parent = RangeBox
+
+RangeBox.FocusLost:Connect(function()
+    local n = tonumber(RangeBox.Text)
+    if n then
+        Settings.ESPRange = math.clamp(n,50,5000)
+        RangeBox.Text = tostring(Settings.ESPRange)
+    end
+end)
+
+--========================
+-- FOV CIRCLE
+--========================
+local FOV = Instance.new("Frame")
+FOV.Name = "FOV"
+FOV.AnchorPoint = Vector2.new(0.5,0.5)
+FOV.Position = UDim2.fromScale(0.5,0.5)
+FOV.Size = UDim2.fromOffset(Settings.FOVRadius*2,Settings.FOVRadius*2)
+FOV.BackgroundTransparency = 1
+FOV.Visible = Settings.FOV
+FOV.Parent = GUI
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(220,220,220)
+Stroke.Thickness = 1
+Stroke.Transparency = 0.25
+Stroke.Parent = FOV
+
+local FC = Instance.new("UICorner")
+FC.CornerRadius = UDim.new(1,0)
+FC.Parent = FOV
+
+--========================
+-- DRAWING OBJECTS
+--========================
+local ESPObjects = {}
+
+local function CreateESP(player)
+
+    if player == LocalPlayer then
+        return
+    end
+
+    local Data = {
+        Box = Instance.new("Frame"),
+        Name = Instance.new("TextLabel"),
+        Tracer = Instance.new("Frame"),
+        Distance = Instance.new("TextLabel")
+    }
+
+    Data.Box.BackgroundTransparency = 1
+    Data.Box.BorderSizePixel = 2
+    Data.Box.BorderColor3 = Settings.BoxColor
+    Data.Box.Visible = false
+    Data.Box.Parent = GUI
+
+    Data.Name.BackgroundTransparency = 1
+    Data.Name.TextColor3 = Color3.new(1,1,1)
+    Data.Name.TextStrokeTransparency = 0
+    Data.Name.TextSize = 13
+    Data.Name.Font = Enum.Font.GothamBold
+    Data.Name.Visible = false
+    Data.Name.Parent = GUI
+
+    Data.Distance.BackgroundTransparency = 1
+    Data.Distance.TextColor3 = Color3.fromRGB(0,170,255)
+    Data.Distance.TextStrokeTransparency = 0
+    Data.Distance.TextSize = 12
+    Data.Distance.Font = Enum.Font.Gotham
+    Data.Distance.Visible = false
+    Data.Distance.Parent = GUI
+
+    Data.Tracer.BackgroundColor3 = Settings.TracerColor
+    Data.Tracer.BorderSizePixel = 0
+    Data.Tracer.AnchorPoint = Vector2.new(0.5,0.5)
+    Data.Tracer.Visible = false
+    Data.Tracer.Parent = GUI
+
+    ESPObjects[player] = Data
+end
+
+local function RemoveESP(player)
+    local data = ESPObjects[player]
+
+    if data then
+        for _,obj in pairs(data) do
+            obj:Destroy()
+        end
+    end
+
+    ESPObjects[player] = nil
+end
+
+for _,player in ipairs(Players:GetPlayers()) do
+    CreateESP(player)
+end
+
+Players.PlayerAdded:Connect(CreateESP)
+Players.PlayerRemoving:Connect(RemoveESP)
+
+--========================
+-- HELPER
+--========================
+local function SetTracer(frame, from, to)
+
+    local dx = to.X - from.X
+    local dy = to.Y - from.Y
+
+    local length = math.sqrt(dx*dx + dy*dy)
+    local angle = math.deg(math.atan2(dy,dx))
+
+    frame.Position = UDim2.fromOffset(
+        (from.X + to.X)/2,
+        (from.Y + to.Y)/2
+    )
+
+    frame.Size = UDim2.fromOffset(length,2)
+    frame.Rotation = angle
+end
+
+--========================
+-- UPDATE ESP
+--========================
+RunService.RenderStepped:Connect(function()
+
+    FOV.Visible = Settings.FOV
+
+    for player,data in pairs(ESPObjects) do
+
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+
+        if not character or not humanoid or humanoid.Health <= 0 or not root then
+
+            data.Box.Visible = false
+            data.Name.Visible = false
+            data.Distance.Visible = false
+            data.Tracer.Visible = false
+
+            continue
+        end
+
+        local distance = (root.Position - Camera.CFrame.Position).Magnitude
+
+        if not Settings.ESP or distance > Settings.ESPRange then
+
+            data.Box.Visible = false
+            data.Name.Visible = false
+            data.Distance.Visible = false
+            data.Tracer.Visible = false
+
+            continue
+        end
+
+        local rootPos, rootVisible =
+            Camera:WorldToViewportPoint(root.Position)
+
+        local head = character:FindFirstChild("Head")
+
+        if not head then
+            continue
+        end
+
+        local headPos, headVisible =
+            Camera:WorldToViewportPoint(head.Position + Vector3.new(0,0.5,0))
+
+        if not rootVisible and not headVisible then
+            data.Box.Visible = false
+            data.Name.Visible = false
+            data.Distance.Visible = false
+            data.Tracer.Visible = false
+            continue
+        end
+
+        -- Box size
+        local height = math.abs(rootPos.Y - headPos.Y) * 2.3
+        local width = height * 0.55
+
+        data.Box.Position = UDim2.fromOffset(
+            rootPos.X - width/2,
+            headPos.Y
+        )
+
+        data.Box.Size = UDim2.fromOffset(width,height)
+        data.Box.BorderColor3 = Settings.BoxColor
+        data.Box.Visible = Settings.Boxes
+
+        -- Name
+        data.Name.Text = player.DisplayName
+        data.Name.Position = UDim2.fromOffset(
+            rootPos.X,
+            headPos.Y - 20
+        )
+        data.Name.Size = UDim2.fromOffset(150,20)
+        data.Name.AnchorPoint = Vector2.new(0.5,0.5)
+        data.Name.Visible = Settings.Names
+
+        -- Distance
+        data.Distance.Text =
+            string.format("%d studs",distance)
+
+        data.Distance.Position = UDim2.fromOffset(
+            rootPos.X,
+            headPos.Y + height + 5
+        )
+
+        data.Distance.Size = UDim2.fromOffset(150,18)
+        data.Distance.AnchorPoint = Vector2.new(0.5,0)
+        data.Distance.Visible = Settings.Distance
+
+        -- Tracer
+        local screenCenter = Vector2.new(
+            Camera.ViewportSize.X/2,
+            Camera.ViewportSize.Y
+        )
+
+        local target = Vector2.new(rootPos.X,rootPos.Y)
+
+        SetTracer(
+            data.Tracer,
+            screenCenter,
+            target
+        )
+
+        data.Tracer.BackgroundColor3 = Settings.TracerColor
+        data.Tracer.Visible = Settings.Tracers
+    end
+end)
+
+--========================
+-- CHAMS / HIGHLIGHT
+--========================
+local Highlights = {}
+
+local function AddHighlight(player)
+
+    if player == LocalPlayer then
+        return
+    end
+
+    player.CharacterAdded:Connect(function(character)
+
+        task.wait(0.5)
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESPHighlight"
+        highlight.FillColor = Settings.ChamsColor
+        highlight.OutlineColor = Color3.new(1,1,1)
+        highlight.FillTransparency = 0.55
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Enabled = Settings.Chams
+        highlight.Parent = character
+
+        Highlights[player] = highlight
+    end)
+end
+
+for _,player in ipairs(Players:GetPlayers()) do
+    AddHighlight(player)
+end
+
+Players.PlayerAdded:Connect(AddHighlight)
+
+--========================
+-- RIGHT SHIFT = HIDE UI
+--========================
+UserInputService.InputBegan:Connect(function(input,gpe)
+
+    if gpe then return end
+
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        Main.Visible = not Main.Visible
+    end
+end)
