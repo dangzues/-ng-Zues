@@ -1,0 +1,275 @@
+local CorrectKey = "DANGZUES-KEY-001"
+local GetKeyURL = "https://owenzeke99-tech.github.io/hdidisosksjssi/"
+local ScriptURL = "https://api.luarmor.net/files/v4/loaders/359e97f8618e9008afe5f496184ebb7c.lua"
+local KeyFileName = "AjjansHub_SavedKey.json"
+
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+-- Auto Key Saver Logic (24 Hours)
+local function SaveKeyData(key)
+    if writefile then
+        local data = {
+            Key = key,
+            Timestamp = os.time()
+        }
+        writefile(KeyFileName, HttpService:JSONEncode(data))
+    end
+end
+
+local function LoadAndCheckSavedKey()
+    if readfile and isfile and isfile(KeyFileName) then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile(KeyFileName))
+        end)
+        
+        if success and result and result.Key and result.Timestamp then
+            local currentTime = os.time()
+            local elapsedTime = currentTime - result.Timestamp
+            
+            -- 86400 seconds = 24 hours
+            if elapsedTime < 86400 and result.Key == CorrectKey then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Fast Load if Key is Valid
+if LoadAndCheckSavedKey() then
+    loadstring(game:HttpGet(ScriptURL))()
+    return
+end
+
+-- UI Initialization
+if CoreGui:FindFirstChild("AjjansModernHub") then
+    CoreGui.AjjansModernHub:Destroy()
+end
+
+local KeySystem = Instance.new("ScreenGui")
+KeySystem.Name = "AjjansModernHub"
+KeySystem.Parent = CoreGui
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 420, 0, 270)
+Main.Position = UDim2.new(0.5, -210, 0.5, -135)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = KeySystem
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(255, 35, 50)
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = Main
+
+-- Header
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 60)
+Header.BackgroundTransparency = 1
+Header.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 0, 30)
+Title.Position = UDim2.new(0, 20, 0, 12)
+Title.BackgroundTransparency = 1
+Title.Text = "AJJANS HUB"
+Title.TextColor3 = Color3.fromRGB(255, 45, 60)
+Title.TextSize = 22
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local SubTitle = Instance.new("TextLabel")
+SubTitle.Size = UDim2.new(1, -40, 0, 18)
+SubTitle.Position = UDim2.new(0, 20, 0, 38)
+SubTitle.BackgroundTransparency = 1
+SubTitle.Text = "Premium Key Verification System"
+SubTitle.TextColor3 = Color3.fromRGB(130, 130, 145)
+SubTitle.TextSize = 11
+SubTitle.Font = Enum.Font.GothamMedium
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+SubTitle.Parent = Header
+
+-- Input Box
+local InputContainer = Instance.new("Frame")
+InputContainer.Size = UDim2.new(1, -40, 0, 48)
+InputContainer.Position = UDim2.new(0, 20, 0, 78)
+InputContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+InputContainer.BorderSizePixel = 0
+InputContainer.Parent = Main
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 10)
+InputCorner.Parent = InputContainer
+
+local InputStroke = Instance.new("UIStroke")
+InputStroke.Thickness = 1
+InputStroke.Color = Color3.fromRGB(40, 40, 50)
+InputStroke.Parent = InputContainer
+
+local KeyBox = Instance.new("TextBox")
+KeyBox.Size = UDim2.new(1, -30, 1, 0)
+KeyBox.Position = UDim2.new(0, 15, 0, 0)
+KeyBox.BackgroundTransparency = 1
+KeyBox.PlaceholderText = "Enter license key here..."
+KeyBox.PlaceholderColor3 = Color3.fromRGB(90, 90, 105)
+KeyBox.Text = ""
+KeyBox.TextColor3 = Color3.fromRGB(240, 240, 245)
+KeyBox.TextSize = 13
+KeyBox.Font = Enum.Font.Gotham
+KeyBox.TextXAlignment = Enum.TextXAlignment.Left
+KeyBox.Parent = InputContainer
+
+-- Status Label
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -40, 0, 20)
+Status.Position = UDim2.new(0, 20, 0, 134)
+Status.BackgroundTransparency = 1
+Status.Text = ""
+Status.TextColor3 = Color3.fromRGB(255, 60, 70)
+Status.TextSize = 11
+Status.Font = Enum.Font.GothamBold
+Status.TextXAlignment = Enum.TextXAlignment.Center
+Status.Parent = Main
+
+-- Get Key Button
+local GetBtn = Instance.new("TextButton")
+GetBtn.Size = UDim2.new(0.48, -5, 0, 46)
+GetBtn.Position = UDim2.new(0, 20, 0, 162)
+GetBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+GetBtn.Text = "GET KEY"
+GetBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+GetBtn.TextSize = 12
+GetBtn.Font = Enum.Font.GothamBold
+GetBtn.AutoButtonColor = false
+GetBtn.Parent = Main
+
+local GetCorner = Instance.new("UICorner")
+GetCorner.CornerRadius = UDim.new(0, 10)
+GetCorner.Parent = GetBtn
+
+local GetStroke = Instance.new("UIStroke")
+GetStroke.Thickness = 1
+GetStroke.Color = Color3.fromRGB(60, 25, 30)
+GetStroke.Parent = GetBtn
+
+-- Check Key Button
+local CheckBtn = Instance.new("TextButton")
+CheckBtn.Size = UDim2.new(0.48, -5, 0, 46)
+CheckBtn.Position = UDim2.new(0.52, 0, 0, 162)
+CheckBtn.BackgroundColor3 = Color3.fromRGB(220, 30, 45)
+CheckBtn.Text = "CHECK KEY"
+CheckBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CheckBtn.TextSize = 12
+CheckBtn.Font = Enum.Font.GothamBold
+CheckBtn.AutoButtonColor = false
+CheckBtn.Parent = Main
+
+local CheckCorner = Instance.new("UICorner")
+CheckCorner.CornerRadius = UDim.new(0, 10)
+CheckCorner.Parent = CheckBtn
+
+-- Footer
+local Footer = Instance.new("TextLabel")
+Footer.Size = UDim2.new(1, 0, 0, 20)
+Footer.Position = UDim2.new(0, 0, 0, 238)
+Footer.BackgroundTransparency = 1
+Footer.Text = "Ajjans Hub • Secured Protection"
+Footer.TextColor3 = Color3.fromRGB(70, 70, 85)
+Footer.TextSize = 10
+Footer.Font = Enum.Font.Gotham
+Footer.Parent = Main
+
+-- Animations
+KeyBox.Focused:Connect(function()
+    TweenService:Create(InputStroke, TweenInfo.new(0.25), {Color = Color3.fromRGB(255, 35, 50)}):Play()
+end)
+
+KeyBox.FocusLost:Connect(function()
+    TweenService:Create(InputStroke, TweenInfo.new(0.25), {Color = Color3.fromRGB(40, 40, 50)}):Play()
+end)
+
+GetBtn.MouseEnter:Connect(function()
+    TweenService:Create(GetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 38)}):Play()
+    TweenService:Create(GetStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(255, 35, 50)}):Play()
+end)
+
+GetBtn.MouseLeave:Connect(function()
+    TweenService:Create(GetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 28)}):Play()
+    TweenService:Create(GetStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(60, 25, 30)}):Play()
+end)
+
+CheckBtn.MouseEnter:Connect(function()
+    TweenService:Create(CheckBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(245, 35, 55)}):Play()
+end)
+
+CheckBtn.MouseLeave:Connect(function()
+    TweenService:Create(CheckBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(220, 30, 45)}):Play()
+end)
+
+-- Menu Shake Effect
+local function ShakeMenu()
+    local baseX = -210
+    local baseY = -135
+    local offsets = {12, -10, 8, -6, 3, 0}
+    
+    TweenService:Create(InputStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(255, 35, 50)}):Play()
+    
+    task.spawn(function()
+        for _, offset in ipairs(offsets) do
+            local tween = TweenService:Create(
+                Main, 
+                TweenInfo.new(0.045, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {Position = UDim2.new(0.5, baseX + offset, 0.5, baseY)}
+            )
+            tween:Play()
+            tween.Completed:Wait()
+        end
+        Main.Position = UDim2.new(0.5, baseX, 0.5, baseY)
+        TweenService:Create(InputStroke, TweenInfo.new(0.4), {Color = Color3.fromRGB(40, 40, 50)}):Play()
+    end)
+end
+
+-- Actions
+GetBtn.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard(GetKeyURL)
+        Status.TextColor3 = Color3.fromRGB(255, 185, 45)
+        Status.Text = "✓ COPIED LINK TO CLIPBOARD!"
+    else
+        Status.TextColor3 = Color3.fromRGB(255, 60, 70)
+        Status.Text = "✕ EXECUTOR NOT SUPPORTED!"
+    end
+end)
+
+CheckBtn.MouseButton1Click:Connect(function()
+    if KeyBox.Text == CorrectKey then
+        SaveKeyData(KeyBox.Text) -- Save Key upon success
+        
+        Status.TextColor3 = Color3.fromRGB(45, 230, 115)
+        Status.Text = "✓ KEY VERIFIED! SAVED FOR 24 HOURS."
+        
+        TweenService:Create(CheckBtn, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(35, 180, 90)}):Play()
+        CheckBtn.Text = "VERIFIED"
+        
+        task.wait(1)
+        KeySystem:Destroy()
+        loadstring(game:HttpGet(ScriptURL))()
+    else
+        Status.TextColor3 = Color3.fromRGB(255, 60, 70)
+        Status.Text = "✕ INVALID KEY! PLEASE TRY AGAIN."
+        ShakeMenu()
+    end
+end)
+eMenu()
+    end
+end)
