@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title> DangZues Ma-Hoa Obf Free— Premium Obfuscation</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23ff6b3d'/%3E%3Cstop offset='100%25' stop-color='%23cc5528'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M9 16l5 5 9-10' stroke='white' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/editor/editor.main.css">
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --panel: #111118;
+      --border: #252540;
+      --text: #f0f0ff;
+      --muted: #a0a0c0;
+      --dim: #6b6b8a;
+      --accent: #ff6b3d;
+      --accent2: #e55a2b;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --red: #f87171;
+    }
+    * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #3d3d5c #111118; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-track { background: #111118; }
+    *::-webkit-scrollbar-thumb { background: #3d3d5c; border-radius: 4px; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    .header {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(17,17,24,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #c2410c);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(255,107,61,.3);
+    }
+    .brand h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+    .brand p { margin: 0; font-size: .75rem; color: var(--muted); }
+    .status { display: flex; align-items: center; gap: 8px; font-size: .875rem; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+    .dot-amber { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+    .dot-red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .section-label {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Feature cards — style giống VM cards */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 900px) {
+      .feat-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .feat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .feat-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      background: var(--panel);
+      position: relative;
+      user-select: none;
+      border-color: var(--accent);
+      background: rgba(255,107,61,.08);
+      box-shadow: 0 0 0 1px rgba(255,107,61,.28);
+    }
+    .feat-card .check {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .feat-card .title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .85rem; font-weight: 700;
+      margin-bottom: 4px;
+      padding-right: 22px;
+    }
+    .feat-card .desc {
+      font-size: .7rem;
+      color: var(--dim);
+      line-height: 1.35;
+    }
+    .feat-card .badge {
+      display: inline-block;
+      font-size: .55rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      background: #1a1a28;
+      color: #d0d0e8;
+      border: 1px solid #3d3d5c;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: .8rem;
+      cursor: pointer;
+      transition: .2s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #252540; border-color: #6b6b8a; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      font-weight: 700;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(255,107,61,.3);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: .25s;
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(255,107,61,.45);
+    }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    .editor {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: 0 8px 32px rgba(0,0,0,.45);
+      height: 360px;
+    }
+    .editor:focus-within { border-color: var(--accent); }
+    @media (max-width: 640px) { .editor { height: 240px; } }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .stats { display: flex; flex: 1; gap: 8px; flex-wrap: wrap; }
+    .stat {
+      background: #111118;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-width: 80px;
+      flex: 1;
+    }
+    .stat p { margin: 0; font-size: .75rem; color: var(--muted); }
+    .stat strong { display: block; font-size: 1rem; margin-top: 2px; }
+
+    .console {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .console-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,10,15,.6);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .console-body {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: .75rem;
+      max-height: 130px;
+      overflow-y: auto;
+      padding: 6px 0;
+      background: #0d0d14;
+    }
+    .log { padding: 2px 12px; }
+    .log-system { color: var(--muted); }
+    .log-success { color: var(--green); }
+    .log-error { color: var(--red); }
+    .log-warning { color: #fbbf24; }
+    .log-info { color: #60a5fa; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--dim);
+      font-size: .75rem;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo">
+        <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <div>
+        <h1>DangZues Mã Hoá Cho Các Em Yêu </h1>
+        <p>Premium Obfuscation · Owner: DangZues </p>
+      </div>
+    </div>
+    <div class="status">
+      <span class="dot dot-green" id="hdr-dot"></span>
+      <span id="hdr-status">v2.4.1 · Ready</span>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- Protection layers (top) -->
+    <div>
+      <div class="section-label">Protection Layers — Always Max</div>
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="check">
+            <svg width="10" height="10" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="title">🔐 String Encryption <span class="badge">ON</span></div>
+          <div class="desc">XOR / constant encryption for all string literals</div>
+        </div>
+        <div class="feat-card">
+          <div class="check">
+            <svg width="10" height="10" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="title">🔀 Control Flow <span class="badge">ON</span></div>
+          <div class="desc">Opaque predicates &amp; junk branch injection</div>
+        </div>
+        <div class="feat-card">
+          <div class="check">
+            <svg width="10" height="10" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="title">🧬 Mutation <span class="badge">ON</span></div>
+          <div class="desc">Instruction polymorphism &amp; opcode mutation</div>
+        </div>
+        <div class="feat-card">
+          <div class="check">
+            <svg width="10" height="10" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="title">⚡ Super Operators <span class="badge">ON</span></div>
+          <div class="desc">Merge ops into custom virtual opcodes</div>
+        </div>
+        <div class="feat-card">
+          <div class="check">
+            <svg width="10" height="10" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="title">📦 Bytecode Compress <span class="badge">ON</span></div>
+          <div class="desc">Compress final bytecode payload</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="row">
+      <span class="section-label" style="margin:0">Input — Lua / Luau source</span>
+      <div class="btns">
+        <button class="btn" id="btnSample">Demo</button>
+        <button class="btn" id="btnClear">Clear</button>
+        <button class="btn" id="btnUpload">Upload .lua</button>
+        <input type="file" id="fileInput" accept=".lua,.txt" class="hidden">
+      </div>
+    </div>
+    <div class="editor" id="inputEditor"></div>
+
+    <div class="actions">
+      <button class="btn-primary" id="btnObfuscate">
+        <span class="spinner hidden" id="btn-spinner"></span>
+        <span id="btn-label">⚡ Obfuscate</span>
+      </button>
+      <div class="stats">
+        <div class="stat">
+          <p>Original</p>
+          <strong id="statOriginal">0 B</strong>
+        </div>
+        <div class="stat">
+          <p>Obfuscated</p>
+          <strong id="statObfuscated" style="color:var(--accent)">0 B</strong>
+        </div>
+        <div class="stat">
+          <p>Increase</p>
+          <strong id="statIncrease" style="color:var(--yellow)">0%</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="section-label" style="margin:0">Output — Protected code</span>
+      <div class="btns">
+        <button class="btn" id="btnCopy">Copy</button>
+        <button class="btn" id="btnDownload">Download</button>
+      </div>
+    </div>
+    <div class="editor" id="outputEditor" style="height:320px"></div>
+
+    <div class="console">
+      <div class="console-head">
+        <span class="dot dot-green" id="con-dot"></span>
+        Terminal
+        <span id="con-status" style="font-weight:400;margin-left:4px">Ready</span>
+      </div>
+      <div class="console-body" id="console-body"></div>
+    </div>
+  </div>
+
+  <footer>Luau Forge · Max protection · Compatible with Roblox &amp; Luau</footer>
+
+  <script>
+  (function () {
+    const API_URL = "https://luauforge-api-render-v18-9-final.onrender.com";
+    let inputEditor = null, outputEditor = null;
+    const $ = id => document.getElementById(id);
+    const el = {};
+
+    function formatBytes(b) {
+      return b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(2) + " MB";
+    }
+
+    function log(msg, type) {
+      type = type || "system";
+      const d = document.createElement("div");
+      d.className = "log log-" + type;
+      d.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
+      el.consoleBody.appendChild(d);
+      el.consoleBody.scrollTop = el.consoleBody.scrollHeight;
+      while (el.consoleBody.children.length > 100)
+        el.consoleBody.removeChild(el.consoleBody.firstChild);
+    }
+
+    function setStatus(color, text) {
+      el.hdrDot.className = "dot dot-" + color;
+      el.hdrStatus.textContent = text;
+      el.conDot.className = "dot dot-" + color;
+      el.conStatus.textContent = text.replace(/^v[\d.]+ · /, "");
+    }
+
+    function updateStats() {
+      if (!inputEditor || !outputEditor) return;
+      const o = new Blob([inputEditor.getValue()]).size;
+      const b = new Blob([outputEditor.getValue()]).size;
+      el.statOriginal.textContent = formatBytes(o);
+      el.statObfuscated.textContent = formatBytes(b);
+      el.statIncrease.textContent = o ? ((b - o) / o * 100).toFixed(1) + "%" : "0%";
+    }
+
+    // Always max — no user toggles
+    function maxPayload(code) {
+      return {
+        code: code,
+        protectionLevel: "Maximum",
+        compatibilityMode: "Lua51",
+        encryptStrings: true,
+        encryptImportantStrings: true,
+        controlFlow: true,
+        mutate: true,
+        superOperators: true,
+        bytecodeCompress: true,
+        enableDistributedAntiTamper: true,
+        enableRuntimeSecurity: true,
+        preserveLineInfo: false
+      };
+    }
+
+    function fetchWithTimeout(url, options, ms) {
+      const ctrl = new AbortController();
+      const id = setTimeout(function () { ctrl.abort(); }, ms);
+      const opts = Object.assign({}, options || {}, { signal: ctrl.signal });
+      return fetch(url, opts).finally(function () { clearTimeout(id); });
+    }
+
+    async function wakeApi() {
+      log("[API] Waking server (Render free may take 30–60s)…", "info");
+      setStatus("amber", "Waking API");
+      try {
+        const res = await fetchWithTimeout(API_URL + "/health", { method: "GET", mode: "cors", cache: "no-store" }, 90000);
+        if (!res.ok) throw new Error("health HTTP " + res.status);
+        const j = await res.json().catch(function () { return {}; });
+        log("[API] Online · v" + (j.version || "?"), "success");
+        return true;
+      } catch (e) {
+        log("[API] Wake failed: " + (e.name === "AbortError" ? "timeout" : e.message), "warning");
+        return false;
+      }
+    }
+
+    async function performObfuscation() {
+      const code = inputEditor.getValue();
+      if (!code.trim()) {
+        log("Enter code before obfuscating.", "warning");
+        return;
+      }
+      el.btnObfuscate.disabled = true;
+      el.btnSpinner.classList.remove("hidden");
+      el.btnLabel.textContent = "Protecting…";
+      setStatus("amber", "Processing");
+      log("[ENGINE] Starting full obfuscation pipeline…", "system");
+
+      try {
+        await wakeApi();
+
+        var lastErr = null;
+        var data = null;
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            log("[ENGINE] Request attempt " + attempt + "/3…", "system");
+            const res = await fetchWithTimeout(API_URL + "/api/obfuscate", {
+              method: "POST",
+              mode: "cors",
+              cache: "no-store",
+              headers: { "Content-Type": "application/json", "Accept": "application/json" },
+              body: JSON.stringify(maxPayload(code))
+            }, 120000);
+            data = await res.json().catch(function () { return {}; });
+            if (!res.ok || data.success === false)
+              throw new Error(data.error || data.detail || ("HTTP " + res.status));
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            var msg = e.name === "AbortError" ? "timeout (API slow/sleeping)" : e.message;
+            log("[RETRY] " + msg, "warning");
+            if (attempt < 3) await new Promise(function (r) { setTimeout(r, 2000 * attempt); });
+          }
+        }
+        if (lastErr || !data)
+          throw lastErr || new Error("no response");
+
+        outputEditor.setValue(data.output || "");
+        updateStats();
+        setStatus("green", "v18.8.2 · Success");
+        log("[SUCCESS] Obfuscation complete.", "success");
+        log("[APPLIED] VM · CF · Mutate · SuperOp · Encrypt · AntiTamper", "info");
+      } catch (err) {
+        setStatus("red", "Failed");
+        var m = err && err.message ? err.message : String(err);
+        if (m === "Failed to fetch" || (err && err.name === "TypeError"))
+          m = "Failed to fetch — API đang sleep hoặc mất mạng. Đợi 1 phút rồi bấm lại (Render free cold start).";
+        log("[ERROR] " + m, "error");
+      } finally {
+        el.btnObfuscate.disabled = false;
+        el.btnSpinner.classList.add("hidden");
+        el.btnLabel.textContent = "⚡ Obfuscate";
+      }
+    }
+
+    async function safeCopy(text) {
+      if (navigator.clipboard && window.isSecureContext)
+        return navigator.clipboard.writeText(text);
+      return new Promise(function (resolve, reject) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;left:-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy") ? resolve() : reject();
+        document.body.removeChild(ta);
+      });
+    }
+
+    const SAMPLE = [
+      "local function greet(name)",
+      '  local msg = "Hello, " .. name',
+      "  print(msg)",
+      "  return msg",
+      "end",
+      "",
+      'greet("RobloxDev")'
+    ].join("\n");
+
+    function initMonaco() {
+      require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs" } });
+      require(["vs/editor/editor.main"], function () {
+        monaco.languages.register({ id: "luau" });
+        monaco.languages.setMonarchTokensProvider("luau", {
+          tokenizer: {
+            root: [
+              [/--[^\n]*/, "comment"],
+              [/--\[\[[\s\S]*?\]\]/, "comment"],
+              [/\b(local|function|if|then|else|elseif|end|for|while|do|repeat|until|return|break|nil|true|false|and|or|not|in)\b/, "keyword"],
+              [/\b(print|warn|error|type|typeof|assert|require|game|workspace|script|math|string|table|bit32|task|coroutine|debug|os|utf8|shared|_G|_VERSION)\b/, "type"],
+              [/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/, "identifier"],
+              [/"/, "string", "@dstring"],
+              [/'/, "string", "@sstring"],
+              [/\d+\.?\d*/, "number"]
+            ],
+            dstring: [[/"/, "string", "@pop"], [/[^\\"]+/, "string"]],
+            sstring: [[/'/, "string", "@pop"], [/[^\\']+/, "string"]]
+          }
+        });
+
+        var opts = {
+          language: "luau",
+          theme: "vs-dark",
+          fontSize: 14,
+          fontFamily: "'JetBrains Mono','Fira Code',monospace",
+          minimap: { enabled: false },
+          automaticLayout: true,
+          scrollBeyondLastLine: false,
+          lineNumbers: "on",
+          padding: { top: 12, bottom: 12 }
+        };
+
+        inputEditor = monaco.editor.create($("inputEditor"), Object.assign({}, opts, { value: SAMPLE }));
+        outputEditor = monaco.editor.create($("outputEditor"), Object.assign({}, opts, {
+          value: "-- Obfuscated code will appear here...",
+          readOnly: true
+        }));
+
+        inputEditor.onDidChangeModelContent(function () { updateStats(); });
+        log("[SYSTEM] Luau Forge ready · Max protection locked.", "system");
+        updateStats();
+      });
+    }
+
+    function readFile(file) {
+      var ext = file.name.split(".").pop().toLowerCase();
+      if (["lua", "txt"].indexOf(ext) === -1) {
+        log("Only .lua / .txt supported.", "error");
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        inputEditor.setValue(e.target.result);
+        log("[UPLOAD] " + file.name + " (" + formatBytes(file.size) + ")", "info");
+      };
+      reader.readAsText(file);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      el.btnObfuscate = $("btnObfuscate");
+      el.btnCopy = $("btnCopy");
+      el.btnDownload = $("btnDownload");
+      el.btnClear = $("btnClear");
+      el.btnSample = $("btnSample");
+      el.btnUpload = $("btnUpload");
+      el.fileInput = $("fileInput");
+      el.statOriginal = $("statOriginal");
+      el.statObfuscated = $("statObfuscated");
+      el.statIncrease = $("statIncrease");
+      el.consoleBody = $("console-body");
+      el.conDot = $("con-dot");
+      el.conStatus = $("con-status");
+      el.hdrDot = $("hdr-dot");
+      el.hdrStatus = $("hdr-status");
+      el.btnSpinner = $("btn-spinner");
+      el.btnLabel = $("btn-label");
+
+      el.btnObfuscate.addEventListener("click", performObfuscation);
+
+      el.btnCopy.addEventListener("click", function () {
+        var t = outputEditor.getValue();
+        if (!t || t.indexOf("-- Obfuscated") === 0) return;
+        safeCopy(t).then(function () {
+          el.btnCopy.textContent = "Copied!";
+          setTimeout(function () { el.btnCopy.textContent = "Copy"; }, 1600);
+          log("[COPY] Copied to clipboard.", "success");
+        }).catch(function () { log("Clipboard failed.", "error"); });
+      });
+
+      el.btnDownload.addEventListener("click", function () {
+        var t = outputEditor.getValue();
+        if (!t || t.indexOf("-- Obfuscated") === 0) return;
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([t], { type: "text/plain" }));
+        a.download = "obfuscated.lua";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        log("[DOWNLOAD] obfuscated.lua saved.", "success");
+      });
+
+      el.btnClear.addEventListener("click", function () {
+        inputEditor.setValue("");
+        outputEditor.setValue("-- Obfuscated code will appear here...");
+        updateStats();
+        log("[CLEAR] Editors cleared.", "system");
+      });
+
+      el.btnSample.addEventListener("click", function () {
+        inputEditor.setValue(SAMPLE);
+        log("[DEMO] Sample loaded.", "info");
+      });
+
+      el.btnUpload.addEventListener("click", function () { el.fileInput.click(); });
+      el.fileInput.addEventListener("change", function (e) {
+        if (e.target.files[0]) readFile(e.target.files[0]);
+        e.target.value = "";
+      });
+
+      initMonaco();
+    });
+  })();
+  </script>
+</body>
+</html>
+<script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="48a9d86c-fe42-414c-8b7f-709300d741db" data-app-host="app.netlify.com"></script>
