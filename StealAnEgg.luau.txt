@@ -251,7 +251,7 @@ local function smoothTeleport()
 
         root.CFrame = CFrame.new(nextPos) * savedCFrame.Rotation
 
-        task.wait(0.8)
+        task.wait(0.35)
     end
 
     teleporting = false
