@@ -56,7 +56,7 @@ local introTitle = Instance.new("TextLabel")
 introTitle.Size = UDim2.new(1,0,0,80)
 introTitle.Position = UDim2.new(0,0,-0.3,0)
 introTitle.BackgroundTransparency = 1
-introTitle.Text = "AST Hub"
+introTitle.Text = "AST Hub [DangZues]"
 introTitle.TextScaled = true
 introTitle.Font = Enum.Font.GothamBlack
 introTitle.Parent = intro
@@ -97,7 +97,7 @@ task.wait(2.5)
 
 TweenService:Create(
     intro,
-    TweenInfo.new(0.5),
+    TweenInfo.new(0.9),
     {BackgroundTransparency = 1}
 ):Play()
 
@@ -251,7 +251,7 @@ local function smoothTeleport()
 
         root.CFrame = CFrame.new(nextPos) * savedCFrame.Rotation
 
-        task.wait(0.1)
+        task.wait(0.05)
     end
 
     teleporting = false
