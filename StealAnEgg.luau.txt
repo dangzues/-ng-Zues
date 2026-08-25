@@ -76,7 +76,7 @@ local rainbowObjects = {introTitle}
 task.spawn(function()
     local hue = 0
     while intro.Parent do
-        hue = (hue + 0.008) % 1
+        hue = (hue + 0.0009) % 1
         local c = Color3.fromHSV(hue,1,1)
         for _,v in ipairs(rainbowObjects) do
             if v and v.Parent then
