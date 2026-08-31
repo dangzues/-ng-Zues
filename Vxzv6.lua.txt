@@ -1,0 +1,1448 @@
+local WindUI = loadstring(game:HttpGet(
+    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Config = {
+    Godmode = false,
+
+    BoostLevel = 1,
+    MinBoost = 1,
+    MaxBoost = 30,
+
+    BaseWalkSpeed = 16,
+    PromptDistance = 30,
+    PromptHoldDuration = 0,
+
+    DeleteTrap = false,
+    EspTrap = false,
+    DeleteTreadmill = false,
+    
+    AntiRagdoll = false,
+    InstantEgg = false,
+
+    AutoBat = false,
+    EspPlayer = false,
+    AutoAttackBloom = false,
+    
+    AutoFixLagOnEnable = true
+}
+
+local Connections = {
+    Heartbeat = nil,
+    RenderStepped = nil,
+    CharacterAdded = nil,
+    WorkspaceAdded = nil,
+    WorkspaceRemoving = nil,
+    HealthChanged = nil,
+
+    TrapAdded = nil,
+    TrapCleanup = nil,
+    TrapESP = nil,
+    TreadmillAdded = nil,
+    TreadmillCleanup = nil,
+    
+    AntiRagdoll = nil,
+    InstantEgg = nil,
+
+    AutoBat = nil,
+    EspPlayer = nil,
+    AutoAttackBloom = nil
+}
+
+local TrapCache = {}
+local TreadmillCache = {}
+local EggPromptCache = {}
+local TrapESPObjects = {}
+local PlayerESPObjects = {}
+
+local TargetPrompt = nil
+local PromptLoopRunning = false
+local LastRagdollReset = 0
+local AntiRagdollResetCooldown = 0
+
+local ATTACK_RANGE = 20
+
+local BAT_NAMES = {
+    "bat",
+    "gậy"
+}
+
+-- Hàm tự động Fix Lag giúp mượt máy khi bật tính năng
+local function ApplyFixLagAuto()
+    if not Config.AutoFixLagOnEnable then return end
+    pcall(function()
+        local settingsObj = settings()
+        settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+        settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+
+        local lighting = game:GetService("Lighting")
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Technology = Enum.Technology.Compatibility
+
+        if setfpscap then
+            setfpscap(9999999)
+        end
+    end)
+end
+
+-- Hàm rút gọn chữ số cho đơn vị Speed (K, M, B, T)
+local function FormatSpeedNumber(val)
+    local num = tonumber(val)
+    if not num then return tostring(val or "N/A") end
+    
+    if num >= 1e12 then
+        return string.format("%.2fT", num / 1e12)
+    elseif num >= 1e9 then
+        return string.format("%.2fB", num / 1e9)
+    elseif num >= 1e6 then
+        return string.format("%.2fM", num / 1e6)
+    elseif num >= 1e3 then
+        return string.format("%.2fK", num / 1e3)
+    else
+        return tostring(math.floor(num))
+    end
+end
+
+local function DisconnectConnection(name)
+    local connection = Connections[name]
+
+    if connection then
+        pcall(function()
+            connection:Disconnect()
+        end)
+
+        Connections[name] = nil
+    end
+end
+
+local function GetCharacter()
+    return LocalPlayer.Character
+end
+
+local function GetHumanoid(character)
+    if not character then
+        return nil
+    end
+
+    return character:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetRoot(character)
+    if not character then
+        return nil
+    end
+
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetAdaptiveSpeed()
+    local character = GetCharacter()
+    local humanoid = GetHumanoid(character)
+
+    if not humanoid then
+        return Config.BaseWalkSpeed
+    end
+
+    local currentSpeed = humanoid.WalkSpeed
+
+    if currentSpeed <= 0 then
+        currentSpeed = Config.BaseWalkSpeed
+    end
+
+    currentSpeed = math.clamp(currentSpeed, 1, 500)
+
+    local boost = math.clamp(
+        tonumber(Config.BoostLevel) or Config.MinBoost,
+        Config.MinBoost,
+        Config.MaxBoost
+    )
+
+    local speedRatio = math.clamp(
+        currentSpeed / Config.BaseWalkSpeed,
+        0.30,
+        8
+    )
+
+    local adaptiveMultiplier =
+        1 + ((boost * 0.30) * speedRatio)
+
+    return math.clamp(
+        Config.BaseWalkSpeed * adaptiveMultiplier,
+        1,
+        1000
+    )
+end
+
+local TrapKeywords = {
+    "trap",
+    "beartrap",
+    "bear trap",
+    "snare",
+    "bay",
+    "spike trap",
+    "spiketrap",
+    "landmine",
+    "mine",
+    "webtrap",
+    "web trap"
+}
+
+local TreadmillKeywords = {
+    "treadmill",
+    "máy chạy",
+    "may chay",
+    "running machine"
+}
+
+local function NormalizeName(value)
+    value = tostring(value or "")
+    value = string.lower(value)
+
+    return value
+end
+
+local function ContainsKeyword(text, keywordsList)
+    text = NormalizeName(text)
+
+    for _, keyword in ipairs(keywordsList) do
+        if string.find(text, keyword, 1, true) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function IsTrapObject(object)
+    if not object or object == Workspace then
+        return false
+    end
+
+    if ContainsKeyword(object.Name, TrapKeywords) then
+        return true
+    end
+
+    local attributes = {
+        "Trap",
+        "Type",
+        "ObjectType",
+        "ItemType",
+        "Name",
+        "DisplayName"
+    }
+
+    for _, attributeName in ipairs(attributes) do
+        local success, value = pcall(function()
+            return object:GetAttribute(attributeName)
+        end)
+
+        if success and value ~= nil then
+            if ContainsKeyword(value, TrapKeywords) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function IsTreadmillObject(object)
+    if not object or object == Workspace then
+        return false
+    end
+
+    if ContainsKeyword(object.Name, TreadmillKeywords) then
+        return true
+    end
+
+    local attributes = {
+        "Treadmill",
+        "Type",
+        "ObjectType",
+        "ItemType",
+        "Name",
+        "DisplayName"
+    }
+
+    for _, attributeName in ipairs(attributes) do
+        local success, value = pcall(function()
+            return object:GetAttribute(attributeName)
+        end)
+
+        if success and value ~= nil then
+            if ContainsKeyword(value, TreadmillKeywords) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function GetESPAdornee(object)
+    if not object then
+        return nil
+    end
+
+    if object:IsA("BasePart") then
+        return object
+    end
+
+    if object:IsA("Model") then
+        local primary = object.PrimaryPart
+
+        if primary and primary:IsA("BasePart") then
+            return primary
+        end
+
+        local root = object:FindFirstChildWhichIsA(
+            "BasePart",
+            true
+        )
+
+        return root
+    end
+
+    return nil
+end
+
+local function RemoveTrapESP(object)
+    local data = TrapESPObjects[object]
+
+    if not data then
+        return
+    end
+
+    if data.Highlight then
+        pcall(function()
+            data.Highlight:Destroy()
+        end)
+    end
+
+    if data.Billboard then
+        pcall(function()
+            data.Billboard:Destroy()
+        end)
+    end
+
+    TrapESPObjects[object] = nil
+end
+
+local function CreateTrapESP(object)
+    if not Config.EspTrap or not object or not object.Parent or TrapESPObjects[object] then
+        return
+    end
+
+    local adornee = GetESPAdornee(object)
+
+    if not adornee then
+        return
+    end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "VxzTrapHighlight"
+    highlight.Adornee = object:IsA("Model") and object or adornee
+
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+
+    highlight.FillTransparency = 0.55
+    highlight.OutlineTransparency = 0
+
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = true
+
+    highlight.Parent = object
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VxzTrapLabel"
+    billboard.Adornee = adornee
+
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.MaxDistance = 1000
+
+    billboard.Size = UDim2.fromOffset(120, 38)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+
+    billboard.Parent = object
+
+    local label = Instance.new("TextLabel")
+    label.Name = "TrapText"
+
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.fromScale(1, 1)
+
+    label.Font = Enum.Font.GothamBold
+    label.Text = "Trap !"
+    label.TextSize = 18
+
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.TextStrokeTransparency = 0
+
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+
+    label.Parent = billboard
+
+    TrapESPObjects[object] = {
+        Highlight = highlight,
+        Billboard = billboard
+    }
+end
+
+local function ScanAllTraps()
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTrapObject(object) then
+            TrapCache[object] = true
+
+            if Config.EspTrap then
+                CreateTrapESP(object)
+            end
+
+            if Config.DeleteTrap then
+                pcall(function()
+                    object:Destroy()
+                end)
+            end
+        end
+    end
+end
+
+local function ScanAllTreadmills()
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTreadmillObject(object) then
+            TreadmillCache[object] = true
+
+            if Config.DeleteTreadmill then
+                pcall(function()
+                    object:Destroy()
+                end)
+            end
+        end
+    end
+end
+
+local function CleanupTrapESP()
+    for object in pairs(TrapESPObjects) do
+        if not object or not object.Parent then
+            RemoveTrapESP(object)
+        elseif not IsTrapObject(object) then
+            RemoveTrapESP(object)
+        end
+    end
+end
+
+local function StartTrapESP()
+    DisconnectConnection("TrapESP")
+    ScanAllTraps()
+
+    Connections.TrapESP = RunService.Heartbeat:Connect(function()
+        if not Config.EspTrap then
+            return
+        end
+        CleanupTrapESP()
+    end)
+end
+
+local function StopTrapESP()
+    DisconnectConnection("TrapESP")
+    for object in pairs(TrapESPObjects) do
+        RemoveTrapESP(object)
+    end
+end
+
+local function DeleteTrapObject(object)
+    if not Config.DeleteTrap or not object or not object.Parent or not IsTrapObject(object) then
+        return
+    end
+
+    TrapCache[object] = true
+    pcall(function()
+        object:Destroy()
+    end)
+end
+
+local function DeleteTreadmillObject(object)
+    if not Config.DeleteTreadmill or not object or not object.Parent or not IsTreadmillObject(object) then
+        return
+    end
+
+    TreadmillCache[object] = true
+    pcall(function()
+        object:Destroy()
+    end)
+end
+
+local function StartTrapScanner()
+    DisconnectConnection("TrapAdded")
+    DisconnectConnection("TrapCleanup")
+    ScanAllTraps()
+
+    Connections.TrapAdded = Workspace.DescendantAdded:Connect(function(object)
+        if Config.DeleteTrap and IsTrapObject(object) then
+            DeleteTrapObject(object)
+        end
+    end)
+
+    Connections.TrapCleanup = RunService.Heartbeat:Connect(function()
+        if not Config.DeleteTrap then
+            return
+        end
+
+        for object in pairs(TrapCache) do
+            if object and object.Parent then
+                DeleteTrapObject(object)
+            else
+                TrapCache[object] = nil
+            end
+        end
+    end)
+end
+
+local function StopTrapScanner()
+    DisconnectConnection("TrapAdded")
+    DisconnectConnection("TrapCleanup")
+    table.clear(TrapCache)
+end
+
+local function StartTreadmillScanner()
+    DisconnectConnection("TreadmillAdded")
+    DisconnectConnection("TreadmillCleanup")
+    ScanAllTreadmills()
+
+    Connections.TreadmillAdded = Workspace.DescendantAdded:Connect(function(object)
+        if Config.DeleteTreadmill and IsTreadmillObject(object) then
+            DeleteTreadmillObject(object)
+        end
+    end)
+
+    Connections.TreadmillCleanup = RunService.Heartbeat:Connect(function()
+        if not Config.DeleteTreadmill then
+            return
+        end
+
+        for object in pairs(TreadmillCache) do
+            if object and object.Parent then
+                DeleteTreadmillObject(object)
+            else
+                TreadmillCache[object] = nil
+            end
+        end
+    end)
+end
+
+local function StopTreadmillScanner()
+    DisconnectConnection("TreadmillAdded")
+    DisconnectConnection("TreadmillCleanup")
+    table.clear(TreadmillCache)
+end
+
+local function EnableDeleteTrap()
+    Config.DeleteTrap = true
+    ApplyFixLagAuto()
+    StartTrapScanner()
+end
+
+local function DisableDeleteTrap()
+    Config.DeleteTrap = false
+    StopTrapScanner()
+end
+
+local function EnableDeleteTreadmill()
+    Config.DeleteTreadmill = true
+    ApplyFixLagAuto()
+    StartTreadmillScanner()
+end
+
+local function DisableDeleteTreadmill()
+    Config.DeleteTreadmill = false
+    StopTreadmillScanner()
+end
+
+local function EnableTrapESP()
+    Config.EspTrap = true
+    ApplyFixLagAuto()
+    StartTrapESP()
+end
+
+local function DisableTrapESP()
+    Config.EspTrap = false
+    StopTrapESP()
+end
+
+local function RemovePlayerESP(player)
+    local data = PlayerESPObjects[player]
+    if data then
+        if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+        if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+        PlayerESPObjects[player] = nil
+    end
+end
+
+local function GetPlayerSpeedFromLeaderboard(player)
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local speedStat = leaderstats:FindFirstChild("Speed") or leaderstats:FindFirstChild("speed") or leaderstats:FindFirstChild("WalkSpeed")
+        if speedStat then
+            return FormatSpeedNumber(speedStat.Value)
+        end
+    end
+    
+    local char = player.Character
+    if char then
+        local hum = GetHumanoid(char)
+        if hum then
+            return FormatSpeedNumber(hum.WalkSpeed)
+        end
+    end
+    return "N/A"
+end
+
+local function CreatePlayerESP(player)
+    if player == LocalPlayer or not Config.EspPlayer then return end
+    
+    local char = player.Character
+    if not char then return end
+
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+
+    RemovePlayerESP(player)
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "VxzPlayerHighlight"
+    highlight.Adornee = char
+    highlight.FillColor = Color3.fromRGB(0, 170, 255)
+    highlight.OutlineColor = Color3.fromRGB(0, 100, 200)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = char
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VxzPlayerLabel"
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.MaxDistance = 1000
+    billboard.Size = UDim2.fromOffset(200, 50)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.Parent = head
+
+    local label = Instance.new("TextLabel")
+    label.Name = "PlayerText"
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.fromScale(1, 1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(0, 120, 255)
+    label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeTransparency = 0
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.Parent = billboard
+
+    PlayerESPObjects[player] = {
+        Highlight = highlight,
+        Billboard = billboard,
+        Label = label
+    }
+end
+
+local function UpdatePlayerESP()
+    local myChar = GetCharacter()
+    local myRoot = GetRoot(myChar)
+
+    for player, data in pairs(PlayerESPObjects) do
+        if player and player.Parent and player.Character and player.Character:FindFirstChild("Head") then
+            local targetChar = player.Character
+            local targetRoot = GetRoot(targetChar)
+            
+            local distStr = "N/A"
+            if myRoot and targetRoot then
+                local dist = math.floor((myRoot.Position - targetRoot.Position).Magnitude)
+                distStr = tostring(dist) .. "m"
+            end
+
+            local speedStr = GetPlayerSpeedFromLeaderboard(player)
+
+            if data.Label then
+                data.Label.Text = string.format("%s\n[%s] | Speed: %s", player.DisplayName or player.Name, distStr, speedStr)
+            end
+        else
+            RemovePlayerESP(player)
+        end
+    end
+end
+
+local function StartPlayerESP()
+    DisconnectConnection("EspPlayer")
+    ApplyFixLagAuto()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreatePlayerESP(player)
+        end
+    end
+
+    task.spawn(function()
+        while Config.EspPlayer do
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    if not PlayerESPObjects[player] and player.Character then
+                        CreatePlayerESP(player)
+                    end
+                end
+            end
+            UpdatePlayerESP()
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function StopPlayerESP()
+    DisconnectConnection("EspPlayer")
+    for player in pairs(PlayerESPObjects) do
+        RemovePlayerESP(player)
+    end
+end
+
+local function IsEggPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then
+        return false
+    end
+
+    local nameText = string.lower(
+        tostring(prompt.Name) ..
+        " " ..
+        tostring(prompt.ObjectText)
+    )
+
+    local actionText = string.lower(
+        tostring(prompt.ActionText)
+    )
+
+    local nameMatch =
+        string.find(nameText, "trứng", 1, true) or
+        string.find(nameText, "trung", 1, true) or
+        string.find(nameText, "egg", 1, true)
+
+    local actionMatch =
+        string.find(actionText, "trộm", 1, true) or
+        string.find(actionText, "trom", 1, true) or
+        string.find(actionText, "cắp", 1, true) or
+        string.find(actionText, "steal", 1, true)
+
+    return nameMatch ~= nil or actionMatch ~= nil
+end
+
+local function ApplyInstantEggPrompt(prompt)
+    if prompt and prompt:IsA("ProximityPrompt") and IsEggPrompt(prompt) then
+        pcall(function()
+            prompt.HoldDuration = 0
+        end)
+    end
+end
+
+local function StartInstantEgg()
+    DisconnectConnection("InstantEgg")
+    ApplyFixLagAuto()
+
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if object:IsA("ProximityPrompt") then
+            ApplyInstantEggPrompt(object)
+        end
+    end
+
+    Connections.InstantEgg = Workspace.DescendantAdded:Connect(function(object)
+        if Config.InstantEgg and object:IsA("ProximityPrompt") then
+            ApplyInstantEggPrompt(object)
+        end
+    end)
+end
+
+local function StopInstantEgg()
+    DisconnectConnection("InstantEgg")
+end
+
+local function TrackObject(object)
+    if Config.DeleteTrap and IsTrapObject(object) then
+        TrapCache[object] = true
+        pcall(function() object:Destroy() end)
+        return
+    end
+
+    if Config.DeleteTreadmill and IsTreadmillObject(object) then
+        TreadmillCache[object] = true
+        pcall(function() object:Destroy() end)
+        return
+    end
+
+    if Config.EspTrap and IsTrapObject(object) then
+        CreateTrapESP(object)
+    end
+
+    if object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+        EggPromptCache[object] = true
+        if Config.InstantEgg then
+            ApplyInstantEggPrompt(object)
+        end
+    end
+end
+
+local function UntrackObject(object)
+    TrapCache[object] = nil
+    TreadmillCache[object] = nil
+    EggPromptCache[object] = nil
+
+    RemoveTrapESP(object)
+
+    if TargetPrompt == object then
+        TargetPrompt = nil
+    end
+end
+
+local function BuildInitialCache()
+    table.clear(TrapCache)
+    table.clear(TreadmillCache)
+    table.clear(EggPromptCache)
+
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTrapObject(object) then
+            TrapCache[object] = true
+
+            if Config.EspTrap then
+                CreateTrapESP(object)
+            end
+
+            if Config.DeleteTrap then
+                pcall(function()
+                    object:Destroy()
+                end)
+            end
+
+        elseif IsTreadmillObject(object) then
+            TreadmillCache[object] = true
+
+            if Config.DeleteTreadmill then
+                pcall(function()
+                    object:Destroy()
+                end)
+            end
+
+        elseif object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+            EggPromptCache[object] = true
+            if Config.InstantEgg then
+                ApplyInstantEggPrompt(object)
+            end
+        end
+    end
+end
+
+local function BypassAntiCheat()
+    if not Config.Godmode then
+        return
+    end
+
+    local character = GetCharacter()
+
+    if not character then
+        return
+    end
+
+    local humanoid = GetHumanoid(character)
+
+    if humanoid then
+        pcall(function()
+            humanoid:Destroy()
+        end)
+    end
+
+    local newHumanoid = Instance.new("Humanoid")
+
+    newHumanoid.Name = "Humanoid"
+    newHumanoid.Parent = character
+
+    pcall(function()
+        newHumanoid.BreakJointsOnDeath = false
+
+        newHumanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Dead,
+            false
+        )
+
+        newHumanoid:SetStateEnabled(
+            Enum.HumanoidStateType.FallingDown,
+            false
+        )
+
+        newHumanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Ragdoll,
+            false
+        )
+
+        newHumanoid.WalkSpeed = GetAdaptiveSpeed()
+    end)
+
+    if Workspace.CurrentCamera then
+        Workspace.CurrentCamera.CameraSubject = newHumanoid
+    end
+end
+
+local function SetupAntiDie()
+    if not Config.Godmode then
+        return
+    end
+
+    DisconnectConnection("HealthChanged")
+
+    local character = GetCharacter()
+
+    if not character then
+        return
+    end
+
+    local humanoid = GetHumanoid(character)
+
+    if not humanoid then
+        return
+    end
+
+    pcall(function()
+        humanoid.BreakJointsOnDeath = false
+
+        humanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Dead,
+            false
+        )
+
+        humanoid:SetStateEnabled(
+            Enum.HumanoidStateType.FallingDown,
+            false
+        )
+
+        humanoid:SetStateEnabled(
+            Enum.HumanoidStateType.Ragdoll,
+            false
+        )
+    end)
+
+    Connections.HealthChanged =
+        humanoid:GetPropertyChangedSignal("Health"):Connect(
+            function()
+
+                if not Config.Godmode then
+                    return
+                end
+
+                if humanoid.Health <= 0 then
+                    pcall(function()
+                        humanoid.Health = humanoid.MaxHealth
+                    end)
+                end
+            end
+        )
+end
+
+local function ForceAntiRagdollReset()
+    local char = GetCharacter()
+    if not char then return end
+
+    local hum = GetHumanoid(char)
+    local root = GetRoot(char)
+
+    if not hum or not root or hum.Health <= 0 then
+        return
+    end
+
+    pcall(function()
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("Motor6D") then
+                obj.Enabled = true
+            elseif obj:IsA("Constraint") then
+                obj.Enabled = true
+            end
+        end
+
+        if Workspace.CurrentCamera then
+            Workspace.CurrentCamera.CameraSubject = hum
+        end
+
+        local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+        local playerModule = playerScripts and playerScripts:FindFirstChild("PlayerModule")
+
+        if playerModule then
+            local controlModule = require(
+                playerModule:FindFirstChild("ControlModule")
+            )
+
+            if controlModule then
+                controlModule:Enable()
+            end
+        end
+
+        hum.AutoRotate = true
+        hum.PlatformStand = false
+        hum.Sit = false
+    end)
+end
+
+local function StartAntiRagdoll()
+    DisconnectConnection("AntiRagdoll")
+    ApplyFixLagAuto()
+
+    Connections.AntiRagdoll = RunService.Heartbeat:Connect(function()
+        if not Config.AntiRagdoll then
+            return
+        end
+
+        local char = GetCharacter()
+        if not char then return end
+
+        local hum = GetHumanoid(char)
+        if not hum or hum.Health <= 0 then return end
+
+        local state = hum:GetState()
+
+        local isRagdolled =
+            state == Enum.HumanoidStateType.Physics
+            or state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.FallingDown
+
+        if isRagdolled then
+            local now = tick()
+
+            if now - AntiRagdollResetCooldown > 0.15 then
+                AntiRagdollResetCooldown = now
+                ForceAntiRagdollReset()
+            end
+        end
+    end)
+end
+
+local function StopAntiRagdoll()
+    DisconnectConnection("AntiRagdoll")
+end
+
+local function isBat(tool)
+    if not tool or not tool:IsA("Tool") then
+        return false
+    end
+
+    local name = tool.Name:lower()
+
+    for _, keyword in ipairs(BAT_NAMES) do
+        if name:find(keyword, 1, true) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function getBat()
+    local character = GetCharacter()
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+
+    if character then
+        for _, object in ipairs(character:GetChildren()) do
+            if isBat(object) then
+                return object
+            end
+        end
+    end
+
+    if backpack then
+        for _, object in ipairs(backpack:GetChildren()) do
+            if isBat(object) then
+                return object
+            end
+        end
+    end
+
+    return nil
+end
+
+local function equipBat()
+    local character = GetCharacter()
+
+    if not character then
+        return nil
+    end
+
+    local humanoid = GetHumanoid(character)
+
+    if not humanoid then
+        return nil
+    end
+
+    local bat = getBat()
+
+    if not bat then
+        return nil
+    end
+
+    if bat.Parent ~= character then
+        pcall(function()
+            humanoid:EquipTool(bat)
+        end)
+
+        task.wait()
+    end
+
+    return bat
+end
+
+local function getNearestEnemy(maxRange)
+    local character = GetCharacter()
+
+    if not character then
+        return nil
+    end
+
+    local root = GetRoot(character)
+
+    if not root then
+        return nil
+    end
+
+    local nearestCharacter = nil
+    local nearestDistance = maxRange or ATTACK_RANGE
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local targetCharacter = player.Character
+
+            if targetCharacter then
+                local targetRoot = GetRoot(targetCharacter)
+                local targetHumanoid = GetHumanoid(targetCharacter)
+
+                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                    local distance = (targetRoot.Position - root.Position).Magnitude
+
+                    if distance <= nearestDistance then
+                        nearestDistance = distance
+                        nearestCharacter = targetCharacter
+                    end
+                end
+            end
+        end
+    end
+
+    return nearestCharacter
+end
+
+local function attackBat(maxRange)
+    local target = getNearestEnemy(maxRange)
+
+    if not target then
+        return
+    end
+
+    local bat = equipBat()
+
+    if not bat then
+        return
+    end
+
+    pcall(function()
+        bat:Activate()
+    end)
+end
+
+local function StartAutoBat()
+    DisconnectConnection("AutoBat")
+    ApplyFixLagAuto()
+
+    Connections.AutoBat = RunService.Heartbeat:Connect(function()
+        if not Config.AutoBat then
+            return
+        end
+
+        attackBat(ATTACK_RANGE)
+    end)
+end
+
+local function StopAutoBat()
+    DisconnectConnection("AutoBat")
+end
+
+local function StartAutoAttackBloom()
+    DisconnectConnection("AutoAttackBloom")
+    ApplyFixLagAuto()
+
+    task.spawn(function()
+        while Config.AutoAttackBloom do
+            attackBat(99999)
+            task.wait(0.05)
+        end
+    end)
+end
+
+local function StopAutoAttackBloom()
+    DisconnectConnection("AutoAttackBloom")
+end
+
+local function EnableGodmode()
+    Config.Godmode = true
+    ApplyFixLagAuto()
+
+    BuildInitialCache()
+    BypassAntiCheat()
+
+    task.wait(0.1)
+
+    SetupAntiDie()
+
+    DisconnectConnection("Heartbeat")
+
+    Connections.Heartbeat =
+        RunService.Heartbeat:Connect(function()
+            if not Config.Godmode then return end
+            local character = GetCharacter()
+            local humanoid = GetHumanoid(character)
+            if humanoid then
+                local targetSpeed = GetAdaptiveSpeed()
+                if math.abs(humanoid.WalkSpeed - targetSpeed) > 0.01 then
+                    humanoid.WalkSpeed = targetSpeed
+                end
+            end
+        end)
+end
+
+local function DisableGodmode()
+    Config.Godmode = false
+
+    DisconnectConnection("Heartbeat")
+    DisconnectConnection("RenderStepped")
+    DisconnectConnection("HealthChanged")
+
+    local humanoid = GetHumanoid(GetCharacter())
+    if humanoid then
+        pcall(function()
+            humanoid.WalkSpeed = 16
+        end)
+    end
+end
+
+-- Khởi tạo WindUI với giao diện Light (Trắng)
+local Window = WindUI:CreateWindow({
+    Title = "Vxz Script v6",
+    Icon = "shield",
+    Author = "Vxz Script",
+    Folder = "VxzScript",
+
+    Size = UDim2.fromOffset(580, 460),
+
+    Transparent = true,
+    Theme = "Green",
+
+    SideBarWidth = 190,
+    HasOutline = true
+})
+
+local MainTab = Window:Tab({
+    Title = "Main",
+    Icon = "home"
+})
+
+MainTab:Toggle({
+    Title = "Instant Prompt Egg",
+    Desc = " ",
+    Value = false,
+    Callback = function(value)
+        Config.InstantEgg = value
+        if value then
+            StartInstantEgg()
+        else
+            StopInstantEgg()
+        end
+    end
+})
+
+local SpeedTab = Window:Tab({
+    Title = "Speed Player",
+    Icon = "shield-check"
+})
+
+SpeedTab:Toggle({
+    Title = "Speed Boost",
+    Desc = "Boost 23 is safe🛡️, 23+ It can cause you to be shocked and die.",
+    Value = false,
+    Callback = function(value)
+        if value then
+            EnableGodmode()
+        else
+            DisableGodmode()
+        end
+    end
+})
+
+SpeedTab:Slider({
+    Title = "Boost level",
+    Desc = "Nâng cấp tốc độ bypass",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 30,
+        Default = 1
+    },
+    Callback = function(value)
+        local number = tonumber(value)
+        if not number then number = 1 end
+        Config.BoostLevel = math.clamp(math.floor(number), 1, 30)
+    end
+})
+
+local PvPTab = Window:Tab({
+    Title = "PvP",
+    Icon = "swords"
+})
+
+PvPTab:Toggle({
+    Title = "Auto Bat",
+    Desc = " ",
+    Value = false,
+    Callback = function(value)
+        Config.AutoBat = value
+        if value then StartAutoBat() else StopAutoBat() end
+    end
+})
+
+PvPTab:Toggle({
+    Title = "ESP Player",
+    Desc = "",
+    Value = false,
+    Callback = function(value)
+        Config.EspPlayer = value
+        if value then StartPlayerESP() else StopPlayerESP() end
+    end
+})
+
+local EventTab = Window:Tab({
+    Title = "Event",
+    Icon = "sparkles"
+})
+
+EventTab:Toggle({
+    Title = "Auto Attack Bloom",
+    Desc = "",
+    Value = false,
+    Callback = function(value)
+        Config.AutoAttackBloom = value
+        if value then StartAutoAttackBloom() else StopAutoAttackBloom() end
+    end
+})
+
+local SecurityTab = Window:Tab({
+    Title = "Security Player",
+    Icon = "shield-alert"
+})
+
+SecurityTab:Toggle({
+    Title = "Delete Trap",
+    Desc = "Xoá Trap giúp giảm thiểu bị bẫy",
+    Value = false,
+    Callback = function(value)
+        if value then EnableDeleteTrap() else DisableDeleteTrap() end
+    end
+})
+
+SecurityTab:Toggle({
+    Title = "Delete Treadmill",
+    Desc = "Xoá máy chạy bộ (Treadmill)",
+    Value = false,
+    Callback = function(value)
+        if value then EnableDeleteTreadmill() else DisableDeleteTreadmill() end
+    end
+})
+
+SecurityTab:Toggle({
+    Title = "ESP Trap",
+    Desc = "Định Vị Bẫy",
+    Value = false,
+    Callback = function(value)
+        if value then EnableTrapESP() else DisableTrapESP() end
+    end
+})
+
+SecurityTab:Toggle({
+    Title = "Anti Ragdoll",
+    Desc = "Chống Ragdoll",
+    Value = false,
+    Callback = function(value)
+        Config.AntiRagdoll = value
+        if value then StartAntiRagdoll() else StopAntiRagdoll() end
+    end
+})
+
+local MiscTab = Window:Tab({
+    Title = "Misc",
+    Icon = "wrench"
+})
+
+MiscTab:Toggle({
+    Title = "Auto Fix Lag On Feature Enable",
+    Desc = "Tự động tối ưu giảm lag khi bật các chức năng",
+    Value = true,
+    Callback = function(value)
+        Config.AutoFixLagOnEnable = value
+    end
+})
+
+MiscTab:Button({
+    Title = "Fix Lag & Max FPS",
+    Desc = "Fix lag | Booster Device",
+    Callback = function()
+        pcall(function()
+            local settingsObj = settings()
+            settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+            settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+
+            for _, v in pairs(game:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Material = Enum.Material.SmoothPlastic
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    v:Destroy()
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                    v.Enabled = false
+                end
+            end
+
+            local lighting = game:GetService("Lighting")
+            lighting.GlobalShadows = false
+            lighting.FogEnd = 9e9
+            lighting.Technology = Enum.Technology.Compatibility
+
+            if setfpscap then
+                setfpscap(9999999)
+            end
+        end)
+    end
+})
+
+BuildInitialCache()
+
+Workspace.DescendantAdded:Connect(function(object)
+    TrackObject(object)
+end)
+
+Workspace.DescendantRemoving:Connect(function(object)
+    UntrackObject(object)
+end
