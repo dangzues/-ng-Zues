@@ -1,0 +1,1192 @@
+-- ============================================================
+-- PHẦN 1/5: Khởi tạo, biến cấu hình & hàm tiện ích cơ bản
+-- ============================================================
+
+local WindUI = loadstring(game:HttpGet(
+    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Config = {
+    Godmode = false,
+    BoostLevel = 1,
+    MinBoost = 1,
+    MaxBoost = 30,
+    BaseWalkSpeed = 16,
+    PromptDistance = 30,
+    PromptHoldDuration = 0,
+    DeleteTrap = false,
+    EspTrap = false,
+    DeleteTreadmill = false,
+    AntiRagdoll = false,
+    InstantEgg = false,
+    AutoBat = false,
+    EspPlayer = false,
+    AutoAttackBloom = false,
+    AutoFixLagOnEnable = true,
+    ShowFPS = false,
+    FPSSize = 18
+}
+
+local Connections = {
+    Heartbeat = nil,
+    RenderStepped = nil,
+    CharacterAdded = nil,
+    WorkspaceAdded = nil,
+    WorkspaceRemoving = nil,
+    HealthChanged = nil,
+    TrapAdded = nil,
+    TrapCleanup = nil,
+    TrapESP = nil,
+    TreadmillAdded = nil,
+    TreadmillCleanup = nil,
+    AntiRagdoll = nil,
+    InstantEgg = nil,
+    AutoBat = nil,
+    EspPlayer = nil,
+    AutoAttackBloom = nil
+}
+
+local TrapCache = {}
+local TreadmillCache = {}
+local EggPromptCache = {}
+local TrapESPObjects = {}
+local PlayerESPObjects = {}
+
+local TargetPrompt = nil
+local PromptLoopRunning = false
+local LastRagdollReset = 0
+local AntiRagdollResetCooldown = 0
+
+local ATTACK_RANGE = 20
+local BAT_NAMES = { "bat", "gậy" }
+
+-- Hàm tự động Fix Lag
+local function ApplyFixLagAuto()
+    if not Config.AutoFixLagOnEnable then return end
+    pcall(function()
+        local settingsObj = settings()
+        settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+        settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+        local lighting = game:GetService("Lighting")
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Technology = Enum.Technology.Compatibility
+        if setfpscap then setfpscap(9999999) end
+    end)
+end
+
+local function FormatSpeedNumber(val)
+    local num = tonumber(val)
+    if not num then return tostring(val or "N/A") end
+    if num >= 1e12 then return string.format("%.2fT", num / 1e12)
+    elseif num >= 1e9 then return string.format("%.2fB", num / 1e9)
+    elseif num >= 1e6 then return string.format("%.2fM", num / 1e6)
+    elseif num >= 1e3 then return string.format("%.2fK", num / 1e3)
+    else return tostring(math.floor(num)) end
+end
+
+local function DisconnectConnection(name)
+    local connection = Connections[name]
+    if connection then
+        pcall(function() connection:Disconnect() end)
+        Connections[name] = nil
+    end
+end
+
+local function GetCharacter() return LocalPlayer.Character end
+local function GetHumanoid(character) return character and character:FindFirstChildOfClass("Humanoid") end
+local function GetRoot(character) return character and character:FindFirstChild("HumanoidRootPart") end
+
+local function GetAdaptiveSpeed()
+    local character = GetCharacter()
+    local humanoid = GetHumanoid(character)
+    if not humanoid then return Config.BaseWalkSpeed end
+    local currentSpeed = math.clamp(humanoid.WalkSpeed > 0 and humanoid.WalkSpeed or Config.BaseWalkSpeed, 1, 500)
+    local boost = math.clamp(tonumber(Config.BoostLevel) or Config.MinBoost, Config.MinBoost, Config.MaxBoost)
+    local speedRatio = math.clamp(currentSpeed / Config.BaseWalkSpeed, 0.25, 8)
+    local adaptiveMultiplier = 1 + ((boost * 0.25) * speedRatio)
+    return math.clamp(Config.BaseWalkSpeed * adaptiveMultiplier, 1, 1000)
+end
+
+-- ============================================================
+-- KẾT THÚC PHẦN 1/5
+-- ============================================================
+-- ============================================================
+-- PHẦN 2/5: Nhận diện đối tượng & Hàm xử lý ESP
+-- ============================================================
+
+-- Keywords và hàm nhận diện
+local TrapKeywords = {"trap","beartrap","bear trap","snare","bay","spike trap","spiketrap","landmine","mine","webtrap","web trap"}
+local TreadmillKeywords = {"treadmill","máy chạy","may chay","running machine"}
+
+local function NormalizeName(value)
+    value = tostring(value or "")
+    return string.lower(value)
+end
+
+local function ContainsKeyword(text, keywordsList)
+    text = NormalizeName(text)
+    for _, keyword in ipairs(keywordsList) do
+        if string.find(text, keyword, 1, true) then return true end
+    end
+    return false
+end
+
+local function IsTrapObject(object)
+    if not object or object == Workspace then return false end
+    if ContainsKeyword(object.Name, TrapKeywords) then return true end
+    local attributes = {"Trap","Type","ObjectType","ItemType","Name","DisplayName"}
+    for _, attr in ipairs(attributes) do
+        local success, value = pcall(function() return object:GetAttribute(attr) end)
+        if success and value ~= nil and ContainsKeyword(value, TrapKeywords) then return true end
+    end
+    return false
+end
+
+local function IsTreadmillObject(object)
+    if not object or object == Workspace then return false end
+    if ContainsKeyword(object.Name, TreadmillKeywords) then return true end
+    local attributes = {"Treadmill","Type","ObjectType","ItemType","Name","DisplayName"}
+    for _, attr in ipairs(attributes) do
+        local success, value = pcall(function() return object:GetAttribute(attr) end)
+        if success and value ~= nil and ContainsKeyword(value, TreadmillKeywords) then return true end
+    end
+    return false
+end
+
+local function GetESPAdornee(object)
+    if not object then return nil end
+    if object:IsA("BasePart") then return object end
+    if object:IsA("Model") then
+        local primary = object.PrimaryPart
+        if primary and primary:IsA("BasePart") then return primary end
+        return object:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
+end
+
+-- ---- Xử lý Trap ESP ----
+local function RemoveTrapESP(object)
+    local data = TrapESPObjects[object]
+    if not data then return end
+    if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+    if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+    TrapESPObjects[object] = nil
+end
+
+local function CreateTrapESP(object)
+    if not Config.EspTrap or not object or not object.Parent or TrapESPObjects[object] then return end
+    local adornee = GetESPAdornee(object)
+    if not adornee then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "VxzTrapHighlight"
+    highlight.Adornee = object:IsA("Model") and object or adornee
+    highlight.FillColor = Color3.fromRGB(255,0,0)
+    highlight.OutlineColor = Color3.fromRGB(255,0,0)
+    highlight.FillTransparency = 0.55
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = true
+    highlight.Parent = object
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VxzTrapLabel"
+    billboard.Adornee = adornee
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.MaxDistance = 1000
+    billboard.Size = UDim2.fromOffset(120, 38)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+    billboard.Parent = object
+    local label = Instance.new("TextLabel")
+    label.Name = "TrapText"
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.fromScale(1,1)
+    label.Font = Enum.Font.GothamBold
+    label.Text = "Trap !"
+    label.TextSize = 18
+    label.TextColor3 = Color3.fromRGB(255,0,0)
+    label.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+    label.TextStrokeTransparency = 0
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.Parent = billboard
+    TrapESPObjects[object] = { Highlight = highlight, Billboard = billboard }
+end
+
+local function ScanAllTraps()
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTrapObject(object) then
+            TrapCache[object] = true
+            if Config.EspTrap then CreateTrapESP(object) end
+            if Config.DeleteTrap then pcall(function() object:Destroy() end) end
+        end
+    end
+end
+
+local function StartTrapESP()
+    DisconnectConnection("TrapESP")
+    ScanAllTraps()
+    Connections.TrapESP = RunService.Heartbeat:Connect(function()
+        if not Config.EspTrap then return end
+        for object in pairs(TrapESPObjects) do
+            if not object or not object.Parent or not IsTrapObject(object) then
+                RemoveTrapESP(object)
+            end
+        end
+    end)
+end
+
+local function StopTrapESP()
+    DisconnectConnection("TrapESP")
+    for object in pairs(TrapESPObjects) do RemoveTrapESP(object) end
+end
+
+-- ---- Xử lý Treadmill ----
+local function ScanAllTreadmills()
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTreadmillObject(object) then
+            TreadmillCache[object] = true
+            if Config.DeleteTreadmill then pcall(function() object:Destroy() end) end
+        end
+    end
+end
+
+local function DeleteTreadmillObject(object)
+    if not Config.DeleteTreadmill or not object or not object.Parent or not IsTreadmillObject(object) then return end
+    TreadmillCache[object] = true
+    pcall(function() object:Destroy() end)
+end
+
+-- ============================================================
+-- KẾT THÚC PHẦN 2/5
+-- ============================================================
+-- ============================================================
+-- PHẦN 3/5: Các chức năng chính (Delete, ESP Player, Instant Egg, Godmode)
+-- ============================================================
+
+-- ---- Xóa Trap ----
+local function DeleteTrapObject(object)
+    if not Config.DeleteTrap or not object or not object.Parent or not IsTrapObject(object) then return end
+    TrapCache[object] = true
+    pcall(function() object:Destroy() end)
+end
+
+local function StartTrapScanner()
+    DisconnectConnection("TrapAdded")
+    DisconnectConnection("TrapCleanup")
+    ScanAllTraps()
+    Connections.TrapAdded = Workspace.DescendantAdded:Connect(function(object)
+        if Config.DeleteTrap and IsTrapObject(object) then DeleteTrapObject(object) end
+    end)
+    Connections.TrapCleanup = RunService.Heartbeat:Connect(function()
+        if not Config.DeleteTrap then return end
+        for object in pairs(TrapCache) do
+            if object and object.Parent then DeleteTrapObject(object) else TrapCache[object] = nil end
+        end
+    end)
+end
+
+local function StopTrapScanner()
+    DisconnectConnection("TrapAdded")
+    DisconnectConnection("TrapCleanup")
+    table.clear(TrapCache)
+end
+
+local function EnableDeleteTrap() Config.DeleteTrap = true; ApplyFixLagAuto(); StartTrapScanner() end
+local function DisableDeleteTrap() Config.DeleteTrap = false; StopTrapScanner() end
+local function EnableTrapESP() Config.EspTrap = true; ApplyFixLagAuto(); StartTrapESP() end
+local function DisableTrapESP() Config.EspTrap = false; StopTrapESP() end
+
+-- ---- Xóa Treadmill ----
+local function StartTreadmillScanner()
+    DisconnectConnection("TreadmillAdded")
+    DisconnectConnection("TreadmillCleanup")
+    ScanAllTreadmills()
+    Connections.TreadmillAdded = Workspace.DescendantAdded:Connect(function(object)
+        if Config.DeleteTreadmill and IsTreadmillObject(object) then DeleteTreadmillObject(object) end
+    end)
+    Connections.TreadmillCleanup = RunService.Heartbeat:Connect(function()
+        if not Config.DeleteTreadmill then return end
+        for object in pairs(TreadmillCache) do
+            if object and object.Parent then DeleteTreadmillObject(object) else TreadmillCache[object] = nil end
+        end
+    end)
+end
+
+local function StopTreadmillScanner()
+    DisconnectConnection("TreadmillAdded")
+    DisconnectConnection("TreadmillCleanup")
+    table.clear(TreadmillCache)
+end
+
+local function EnableDeleteTreadmill() Config.DeleteTreadmill = true; ApplyFixLagAuto(); StartTreadmillScanner() end
+local function DisableDeleteTreadmill() Config.DeleteTreadmill = false; StopTreadmillScanner() end
+
+-- ---- ESP Player ----
+local function RemovePlayerESP(player)
+    local data = PlayerESPObjects[player]
+    if data then
+        if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+        if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+        PlayerESPObjects[player] = nil
+    end
+end
+
+local function GetPlayerSpeedFromLeaderboard(player)
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local speedStat = leaderstats:FindFirstChild("Speed") or leaderstats:FindFirstChild("speed") or leaderstats:FindFirstChild("WalkSpeed")
+        if speedStat then return FormatSpeedNumber(speedStat.Value) end
+    end
+    local char = player.Character
+    if char then
+        local hum = GetHumanoid(char)
+        if hum then return FormatSpeedNumber(hum.WalkSpeed) end
+    end
+    return "N/A"
+end
+
+local function CreatePlayerESP(player)
+    if player == LocalPlayer or not Config.EspPlayer then return end
+    local char = player.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    RemovePlayerESP(player)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "VxzPlayerHighlight"
+    highlight.Adornee = char
+    highlight.FillColor = Color3.fromRGB(0,170,255)
+    highlight.OutlineColor = Color3.fromRGB(0,100,200)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = char
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VxzPlayerLabel"
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.MaxDistance = 1000
+    billboard.Size = UDim2.fromOffset(200,50)
+    billboard.StudsOffset = Vector3.new(0,2.5,0)
+    billboard.Parent = head
+    local label = Instance.new("TextLabel")
+    label.Name = "PlayerText"
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.fromScale(1,1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(0,120,255)
+    label.TextStrokeColor3 = Color3.fromRGB(255,255,255)
+    label.TextStrokeTransparency = 0
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.Parent = billboard
+    PlayerESPObjects[player] = { Highlight = highlight, Billboard = billboard, Label = label }
+end
+
+local function UpdatePlayerESP()
+    local myChar = GetCharacter()
+    local myRoot = GetRoot(myChar)
+    for player, data in pairs(PlayerESPObjects) do
+        if player and player.Parent and player.Character and player.Character:FindFirstChild("Head") then
+            local targetChar = player.Character
+            local targetRoot = GetRoot(targetChar)
+            local distStr = "N/A"
+            if myRoot and targetRoot then
+                local dist = math.floor((myRoot.Position - targetRoot.Position).Magnitude)
+                distStr = tostring(dist) .. "m"
+            end
+            local speedStr = GetPlayerSpeedFromLeaderboard(player)
+            if data.Label then
+                data.Label.Text = string.format("%s\n[%s] | Speed: %s", player.DisplayName or player.Name, distStr, speedStr)
+            end
+        else
+            RemovePlayerESP(player)
+        end
+    end
+end
+
+local function StartPlayerESP()
+    DisconnectConnection("EspPlayer")
+    ApplyFixLagAuto()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then CreatePlayerESP(player) end
+    end
+    task.spawn(function()
+        while Config.EspPlayer do
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and not PlayerESPObjects[player] and player.Character then
+                    CreatePlayerESP(player)
+                end
+            end
+            UpdatePlayerESP()
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function StopPlayerESP()
+    DisconnectConnection("EspPlayer")
+    for player in pairs(PlayerESPObjects) do RemovePlayerESP(player) end
+end
+
+-- ---- Instant Egg ----
+local function IsEggPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+    local nameText = string.lower(tostring(prompt.Name) .. " " .. tostring(prompt.ObjectText))
+    local actionText = string.lower(tostring(prompt.ActionText))
+    local nameMatch = string.find(nameText, "trứng",1,true) or string.find(nameText, "trung",1,true) or string.find(nameText, "egg",1,true)
+    local actionMatch = string.find(actionText, "trộm",1,true) or string.find(actionText, "trom",1,true) or string.find(actionText, "cắp",1,true) or string.find(actionText, "steal",1,true)
+    return nameMatch ~= nil or actionMatch ~= nil
+end
+
+local function ApplyInstantEggPrompt(prompt)
+    if prompt and prompt:IsA("ProximityPrompt") and IsEggPrompt(prompt) then
+        pcall(function() prompt.HoldDuration = 0 end)
+    end
+end
+
+local function StartInstantEgg()
+    DisconnectConnection("InstantEgg")
+    ApplyFixLagAuto()
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if object:IsA("ProximityPrompt") then ApplyInstantEggPrompt(object) end
+    end
+    Connections.InstantEgg = Workspace.DescendantAdded:Connect(function(object)
+        if Config.InstantEgg and object:IsA("ProximityPrompt") then ApplyInstantEggPrompt(object) end
+    end)
+end
+
+local function StopInstantEgg() DisconnectConnection("InstantEgg") end
+
+-- ---- Godmode ----
+local function BypassAntiCheat()
+    if not Config.Godmode then return end
+    local character = GetCharacter()
+    if not character then return end
+    local humanoid = GetHumanoid(character)
+    if humanoid then pcall(function() humanoid:Destroy() end) end
+    local newHumanoid = Instance.new("Humanoid")
+    newHumanoid.Name = "Humanoid"
+    newHumanoid.Parent = character
+    pcall(function()
+        newHumanoid.BreakJointsOnDeath = false
+        newHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        newHumanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        newHumanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        newHumanoid.WalkSpeed = GetAdaptiveSpeed()
+    end)
+    if Workspace.CurrentCamera then Workspace.CurrentCamera.CameraSubject = newHumanoid end
+end
+
+local function SetupAntiDie()
+    if not Config.Godmode then return end
+    DisconnectConnection("HealthChanged")
+    local character = GetCharacter()
+    if not character then return end
+    local humanoid = GetHumanoid(character)
+    if not humanoid then return end
+    pcall(function()
+        humanoid.BreakJointsOnDeath = false
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    end)
+    Connections.HealthChanged = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        if not Config.Godmode then return end
+        if humanoid.Health <= 0 then pcall(function() humanoid.Health = humanoid.MaxHealth end) end
+    end)
+end
+
+local function EnableGodmode()
+    Config.Godmode = true
+    ApplyFixLagAuto()
+    BuildInitialCache()
+    BypassAntiCheat()
+    task.wait(0.1)
+    SetupAntiDie()
+    DisconnectConnection("Heartbeat")
+    Connections.Heartbeat = RunService.Heartbeat:Connect(function()
+        if not Config.Godmode then return end
+        local character = GetCharacter()
+        local humanoid = GetHumanoid(character)
+        if humanoid then
+            local targetSpeed = GetAdaptiveSpeed()
+            if math.abs(humanoid.WalkSpeed - targetSpeed) > 0.01 then
+                humanoid.WalkSpeed = targetSpeed
+            end
+        end
+    end)
+end
+
+local function DisableGodmode()
+    Config.Godmode = false
+    DisconnectConnection("Heartbeat")
+    DisconnectConnection("RenderStepped")
+    DisconnectConnection("HealthChanged")
+    local humanoid = GetHumanoid(GetCharacter())
+    if humanoid then pcall(function() humanoid.WalkSpeed = 16 end) end
+end
+
+-- ============================================================
+-- KẾT THÚC PHẦN 3/5
+-- ============================================================
+-- ============================================================
+-- PHẦN 4/5: AntiRagdoll, AutoBat, AutoAttackBloom, Track/Untrack
+-- ============================================================
+
+-- ---- AntiRagdoll ----
+local function ForceAntiRagdollReset()
+    local char = GetCharacter()
+    if not char then return end
+    local hum = GetHumanoid(char)
+    local root = GetRoot(char)
+    if not hum or not root or hum.Health <= 0 then return end
+    pcall(function()
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("Motor6D") then obj.Enabled = true
+            elseif obj:IsA("Constraint") then obj.Enabled = true end
+        end
+        if Workspace.CurrentCamera then Workspace.CurrentCamera.CameraSubject = hum end
+        local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+        local playerModule = playerScripts and playerScripts:FindFirstChild("PlayerModule")
+        if playerModule then
+            local controlModule = require(playerModule:FindFirstChild("ControlModule"))
+            if controlModule then controlModule:Enable() end
+        end
+        hum.AutoRotate = true
+        hum.PlatformStand = false
+        hum.Sit = false
+    end)
+end
+
+local function StartAntiRagdoll()
+    DisconnectConnection("AntiRagdoll")
+    ApplyFixLagAuto()
+    Connections.AntiRagdoll = RunService.Heartbeat:Connect(function()
+        if not Config.AntiRagdoll then return end
+        local char = GetCharacter()
+        if not char then return end
+        local hum = GetHumanoid(char)
+        if not hum or hum.Health <= 0 then return end
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
+            local now = tick()
+            if now - AntiRagdollResetCooldown > 0.15 then
+                AntiRagdollResetCooldown = now
+                ForceAntiRagdollReset()
+            end
+        end
+    end)
+end
+
+local function StopAntiRagdoll() DisconnectConnection("AntiRagdoll") end
+
+-- ---- Auto Bat ----
+local function isBat(tool)
+    if not tool or not tool:IsA("Tool") then return false end
+    local name = tool.Name:lower()
+    for _, keyword in ipairs(BAT_NAMES) do
+        if name:find(keyword, 1, true) then return true end
+    end
+    return false
+end
+
+local function getBat()
+    local character = GetCharacter()
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if character then
+        for _, object in ipairs(character:GetChildren()) do
+            if isBat(object) then return object end
+        end
+    end
+    if backpack then
+        for _, object in ipairs(backpack:GetChildren()) do
+            if isBat(object) then return object end
+        end
+    end
+    return nil
+end
+
+local function equipBat()
+    local character = GetCharacter()
+    if not character then return nil end
+    local humanoid = GetHumanoid(character)
+    if not humanoid then return nil end
+    local bat = getBat()
+    if not bat then return nil end
+    if bat.Parent ~= character then
+        pcall(function() humanoid:EquipTool(bat) end)
+        task.wait()
+    end
+    return bat
+end
+
+local function getNearestEnemy(maxRange)
+    local character = GetCharacter()
+    if not character then return nil end
+    local root = GetRoot(character)
+    if not root then return nil end
+    local nearestCharacter = nil
+    local nearestDistance = maxRange or ATTACK_RANGE
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local targetCharacter = player.Character
+            if targetCharacter then
+                local targetRoot = GetRoot(targetCharacter)
+                local targetHumanoid = GetHumanoid(targetCharacter)
+                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                    local distance = (targetRoot.Position - root.Position).Magnitude
+                    if distance <= nearestDistance then
+                        nearestDistance = distance
+                        nearestCharacter = targetCharacter
+                    end
+                end
+            end
+        end
+    end
+    return nearestCharacter
+end
+
+local function attackBat(maxRange)
+    local target = getNearestEnemy(maxRange)
+    if not target then return end
+    local bat = equipBat()
+    if not bat then return end
+    pcall(function() bat:Activate() end)
+end
+
+local function StartAutoBat()
+    DisconnectConnection("AutoBat")
+    ApplyFixLagAuto()
+    Connections.AutoBat = RunService.Heartbeat:Connect(function()
+        if Config.AutoBat then attackBat(ATTACK_RANGE) end
+    end)
+end
+
+local function StopAutoBat() DisconnectConnection("AutoBat") end
+
+local function StartAutoAttackBloom()
+    DisconnectConnection("AutoAttackBloom")
+    ApplyFixLagAuto()
+    task.spawn(function()
+        while Config.AutoAttackBloom do
+            attackBat(99999)
+            task.wait(0.05)
+        end
+    end)
+end
+
+local function StopAutoAttackBloom() DisconnectConnection("AutoAttackBloom") end
+
+-- ---- Track / Untrack ----
+local function TrackObject(object)
+    if Config.DeleteTrap and IsTrapObject(object) then
+        TrapCache[object] = true
+        pcall(function() object:Destroy() end)
+        return
+    end
+    if Config.DeleteTreadmill and IsTreadmillObject(object) then
+        TreadmillCache[object] = true
+        pcall(function() object:Destroy() end)
+        return
+    end
+    if Config.EspTrap and IsTrapObject(object) then
+        CreateTrapESP(object)
+    end
+    if object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+        EggPromptCache[object] = true
+        if Config.InstantEgg then ApplyInstantEggPrompt(object) end
+    end
+end
+
+local function UntrackObject(object)
+    TrapCache[object] = nil
+    TreadmillCache[object] = nil
+    EggPromptCache[object] = nil
+    RemoveTrapESP(object)
+    if TargetPrompt == object then TargetPrompt = nil end
+end
+
+local function BuildInitialCache()
+    table.clear(TrapCache)
+    table.clear(TreadmillCache)
+    table.clear(EggPromptCache)
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if IsTrapObject(object) then
+            TrapCache[object] = true
+            if Config.EspTrap then CreateTrapESP(object) end
+            if Config.DeleteTrap then pcall(function() object:Destroy() end) end
+        elseif IsTreadmillObject(object) then
+            TreadmillCache[object] = true
+            if Config.DeleteTreadmill then pcall(function() object:Destroy() end) end
+        elseif object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+            EggPromptCache[object] = true
+            if Config.InstantEgg then ApplyInstantEggPrompt(object) end
+        end
+    end
+end
+
+-- ============================================================
+-- KẾT THÚC PHẦN 4/5
+-- ============================================================
+-- ============================================================
+-- PHẦN 5/5: Auto Steal Egg, FPS Overlay, Giao diện & Khởi tạo
+-- ============================================================
+
+-- ---- AUTO STEAL EGG ----
+local Waypoints = {
+    Vector3.new(596.25, 70.80, -327.61),   -- forest
+    Vector3.new(742.13, 70.80, -407.17),   -- lake
+    Vector3.new(949.45, 70.80, -324.86),   -- desert
+    Vector3.new(1187.28, 70.80, -409.34),  -- jungle
+    Vector3.new(1492.15, 70.80, -313.97),  -- snow
+    Vector3.new(1877.13, 70.80, -398.32),  -- volcano
+    Vector3.new(2281.67, 70.80, -327.57),  -- abyss
+    Vector3.new(2813.76, 70.80, -399.72),  -- prehistoric
+    Vector3.new(3392.31, 70.80, -326.38),  -- cosmic
+    Vector3.new(4027.98, 70.80, -395.78),  -- cherry
+    Vector3.new(4797.66, 70.80, -330.58),  -- titan
+    Vector3.new(3671.26, 70.80, -361.81),  -- event1
+    Vector3.new(3598.52, 70.80, -320.75),  -- event2
+    Vector3.new(3592.96, 70.80, -397.61),  -- event3
+    Vector3.new(4151.92, 70.80, -400.01),  -- event4
+    Vector3.new(4152.66, 70.80, -323.83),  -- event5
+    Vector3.new(504.94, 70.80, -365.10),   -- base
+}
+
+local AutoStealRunning = false
+local AutoStealCoroutine = nil
+
+local function GetEggPosition(prompt)
+    if not prompt then return nil end
+    local adornee = prompt.Adornee
+    if adornee and adornee:IsA("BasePart") then return adornee.Position end
+    local parent = prompt.Parent
+    if parent and parent:IsA("BasePart") then return parent.Position end
+    if parent then
+        for _, child in ipairs(parent:GetChildren()) do
+            if child:IsA("BasePart") then return child.Position end
+        end
+    end
+    return nil
+end
+
+local function GetNearestEgg(origin, maxDist)
+    maxDist = maxDist or 100
+    local best = nil
+    local bestDist = maxDist
+    for _, prompt in ipairs(Workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") and IsEggPrompt(prompt) then
+            local pos = GetEggPosition(prompt)
+            if pos then
+                local dist = (pos - origin).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    best = prompt
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function MoveToPosition(targetPos, tolerance)
+    tolerance = tolerance or 3
+    local char = GetCharacter()
+    if not char then return false end
+    local root = GetRoot(char)
+    if not root then return false end
+    local hum = GetHumanoid(char)
+    if not hum then return false end
+    local originalSpeed = hum.WalkSpeed
+    local speed = math.max(originalSpeed, 80)
+    hum.WalkSpeed = speed
+    hum:MoveTo(targetPos)
+    hum.AutoRotate = true
+    local start = tick()
+    while tick() - start < 25 do
+        if (root.Position - targetPos).Magnitude <= tolerance then
+            hum:MoveTo(root.Position)
+            hum.WalkSpeed = originalSpeed
+            return true
+        end
+        task.wait(0.1)
+    end
+    hum:MoveTo(root.Position)
+    hum.WalkSpeed = originalSpeed
+    return false
+end
+
+local function ActivatePrompt(prompt)
+    if not prompt then return end
+    pcall(function()
+        prompt:InputHoldBegin()
+        task.wait(0.1)
+        prompt:InputHoldEnd()
+    end)
+end
+
+local function AutoStealLoop()
+    local waypointIndex = 1
+    while AutoStealRunning do
+        local char = GetCharacter()
+        if not char then task.wait(0.5) break end
+        local root = GetRoot(char)
+        if not root then task.wait(0.5) break end
+        local hum = GetHumanoid(char)
+        if not hum then task.wait(0.5) break end
+
+        local nearestEgg = GetNearestEgg(root.Position, 100)
+        if nearestEgg then
+            local eggPos = GetEggPosition(nearestEgg)
+            if eggPos then
+                MoveToPosition(eggPos, 5)
+                ActivatePrompt(nearestEgg)
+                task.wait(0.3)
+            end
+        else
+            local target = Waypoints[waypointIndex]
+            if target then
+                MoveToPosition(target, 5)
+                if (root.Position - target).Magnitude <= 5 then
+                    waypointIndex = waypointIndex + 1
+                    if waypointIndex > #Waypoints then waypointIndex = 1 end
+                    if waypointIndex == #Waypoints then task.wait(2) end
+                end
+            else
+                waypointIndex = 1
+            end
+        end
+        task.wait(0.2)
+    end
+end
+
+function StartAutoSteal()
+    if AutoStealRunning then return end
+    AutoStealRunning = true
+    if not Config.InstantEgg then
+        Config.InstantEgg = true
+        StartInstantEgg()
+    end
+    AutoStealCoroutine = task.spawn(AutoStealLoop)
+end
+
+function StopAutoSteal()
+    AutoStealRunning = false
+    if AutoStealCoroutine then
+        task.cancel(AutoStealCoroutine)
+        AutoStealCoroutine = nil
+    end
+end
+
+-- ---- FPS Overlay ----
+local FPSGui = nil
+local FPSFrame = nil
+local FPSLabel = nil
+local FPSConnection = nil
+
+local function DestroyFPSOverlay()
+    if FPSConnection then pcall(function() FPSConnection:Disconnect() end); FPSConnection = nil end
+    if FPSGui then pcall(function() FPSGui:Destroy() end) end
+    FPSGui = nil; FPSFrame = nil; FPSLabel = nil
+end
+
+local function CreateFPSOverlay()
+    if FPSGui and FPSGui.Parent then return end
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    FPSGui = Instance.new("ScreenGui")
+    FPSGui.Name = "VxzFPSOverlay"
+    FPSGui.ResetOnSpawn = false
+    FPSGui.IgnoreGuiInset = false
+    FPSGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    FPSGui.Parent = PlayerGui
+
+    FPSFrame = Instance.new("Frame")
+    FPSFrame.Name = "FPSFrame"
+    FPSFrame.Size = UDim2.fromOffset(145, 48)
+    FPSFrame.Position = UDim2.new(0, 15, 0, 110)
+    FPSFrame.BackgroundColor3 = Color3.fromRGB(20,20,25)
+    FPSFrame.BackgroundTransparency = 0.12
+    FPSFrame.BorderSizePixel = 0
+    FPSFrame.Active = true
+    FPSFrame.Parent = FPSGui
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0,10)
+    Corner.Parent = FPSFrame
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Thickness = 1
+    Stroke.Transparency = 0.35
+    Stroke.Color = Color3.fromRGB(255,255,255)
+    Stroke.Parent = FPSFrame
+
+    FPSLabel = Instance.new("TextLabel")
+    FPSLabel.Name = "FPSLabel"
+    FPSLabel.Size = UDim2.fromScale(1,1)
+    FPSLabel.BackgroundTransparency = 1
+    FPSLabel.Text = "FPS: ..."
+    FPSLabel.TextColor3 = Color3.fromRGB(255,255,255)
+    FPSLabel.Font = Enum.Font.GothamBold
+    FPSLabel.TextSize = Config.FPSSize or 18
+    FPSLabel.TextXAlignment = Enum.TextXAlignment.Center
+    FPSLabel.TextYAlignment = Enum.TextYAlignment.Center
+    FPSLabel.Parent = FPSFrame
+
+    -- Drag
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    local dragInput = nil
+    local function UpdateDrag(input)
+        local delta = input.Position - dragStart
+        FPSFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+    FPSFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = FPSFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    FPSFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then UpdateDrag(input) end
+    end)
+
+    local frames = 0
+    local elapsed = 0
+    FPSConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        frames = frames + 1
+        elapsed = elapsed + deltaTime
+        if elapsed >= 0.5 then
+            local fps = math.floor(frames / elapsed)
+            if FPSLabel then FPSLabel.Text = "FPS: " .. tostring(fps) end
+            frames = 0
+            elapsed = 0
+        end
+    end)
+end
+
+local function EnableFPSOverlay()
+    Config.ShowFPS = true
+    CreateFPSOverlay()
+    if FPSGui then FPSGui.Enabled = true end
+end
+
+local function DisableFPSOverlay()
+    Config.ShowFPS = false
+    if FPSGui then FPSGui.Enabled = false end
+end
+
+local function UpdateFPSSize(size)
+    Config.FPSSize = math.clamp(tonumber(size) or 18, 10, 40)
+    if FPSLabel then FPSLabel.TextSize = Config.FPSSize end
+end
+
+-- ---- Giao diện WindUI ----
+local Window = WindUI:CreateWindow({
+    Title = "Vxz Script",
+    Icon = "shield",
+    Author = "Vxz Script",
+    Folder = "VxzScript",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Green",
+    SideBarWidth = 190,
+    HasOutline = true
+})
+
+local MainTab = Window:Tab({ Title = "Main", Icon = "home" })
+MainTab:Toggle({
+    Title = "Instant Prompt Egg",
+    Desc = "Yamateee",
+    Value = false,
+    Callback = function(value)
+        Config.InstantEgg = value
+        if value then StartInstantEgg() else StopInstantEgg() end
+    end
+})
+
+local SpeedTab = Window:Tab({ Title = "Speed Player", Icon = "shield-check" })
+SpeedTab:Toggle({
+    Title = "Speed Boost",
+    Desc = "Boost 20 is safe🛡️, 20+ It can cause you to be shocked and die.",
+    Value = false,
+    Callback = function(value)
+        if value then EnableGodmode() else DisableGodmode() end
+    end
+})
+SpeedTab:Slider({
+    Title = "Boost level",
+    Desc = "Nâng cấp tốc độ bypass",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = 1 },
+    Callback = function(value)
+        local number = tonumber(value)
+        Config.BoostLevel = math.clamp(math.floor(number or 1), 1, 25)
+    end
+})
+
+local PvPTab = Window:Tab({ Title = "PvP", Icon = "swords" })
+PvPTab:Toggle({
+    Title = "Auto Bat",
+    Desc = " ",
+    Value = false,
+    Callback = function(value)
+        Config.AutoBat = value
+        if value then StartAutoBat() else StopAutoBat() end
+    end
+})
+PvPTab:Toggle({
+    Title = "ESP Player",
+    Desc = "",
+    Value = false,
+    Callback = function(value)
+        Config.EspPlayer = value
+        if value then StartPlayerESP() else StopPlayerESP() end
+    end
+})
+
+local EventTab = Window:Tab({ Title = "Event", Icon = "sparkles" })
+EventTab:Toggle({
+    Title = "Auto Attack Bloom",
+    Desc = "",
+    Value = false,
+    Callback = function(value)
+        Config.AutoAttackBloom = value
+        if value then StartAutoAttackBloom() else StopAutoAttackBloom() end
+    end
+})
+
+local SecurityTab = Window:Tab({ Title = "Security Player", Icon = "shield-alert" })
+SecurityTab:Toggle({
+    Title = "Delete Trap",
+    Desc = "Xoá Trap giúp giảm thiểu bị bẫy",
+    Value = false,
+    Callback = function(value)
+        if value then EnableDeleteTrap() else DisableDeleteTrap() end
+    end
+})
+SecurityTab:Toggle({
+    Title = "Delete Treadmill",
+    Desc = "Xoá máy chạy bộ (Treadmill)",
+    Value = false,
+    Callback = function(value)
+        if value then EnableDeleteTreadmill() else DisableDeleteTreadmill() end
+    end
+})
+SecurityTab:Toggle({
+    Title = "ESP Trap",
+    Desc = "Định Vị Bẫy",
+    Value = false,
+    Callback = function(value)
+        if value then EnableTrapESP() else DisableTrapESP() end
+    end
+})
+SecurityTab:Toggle({
+    Title = "Anti Ragdoll",
+    Desc = "Chống Ragdoll",
+    Value = false,
+    Callback = function(value)
+        Config.AntiRagdoll = value
+        if value then StartAntiRagdoll() else StopAntiRagdoll() end
+    end
+})
+
+local AutoStealTab = Window:Tab({ Title = "Auto Steal", Icon = "egg" })
+AutoStealTab:Toggle({
+    Title = "Auto Steal Egg",
+    Desc = "Tự động bay đến các khu vực và nhặt trứng (tự bật Instant Egg)",
+    Value = false,
+    Callback = function(value)
+        if value then StartAutoSteal() else StopAutoSteal() end
+    end
+})
+
+local MiscTab = Window:Tab({ Title = "Misc", Icon = "wrench" })
+MiscTab:Toggle({
+    Title = "Auto Fix Lag On Feature Enable",
+    Desc = "Tự động tối ưu giảm lag khi bật các chức năng",
+    Value = true,
+    Callback = function(value) Config.AutoFixLagOnEnable = value end
+})
+MiscTab:Toggle({
+    Title = "Show FPS",
+    Desc = "Hiện FPS trên điện thoại, tablet và PC | Có thể kéo vị trí",
+    Value = false,
+    Callback = function(value)
+        if value then EnableFPSOverlay() else DisableFPSOverlay() end
+    end
+})
+MiscTab:Slider({
+    Title = "FPS Text Size",
+    Desc = "Chỉnh kích thước chữ FPS",
+    Step = 1,
+    Value = { Min = 10, Max = 40, Default = 18 },
+    Callback = function(value) UpdateFPSSize(value) end
+})
+MiscTab:Button({
+    Title = "Fix Lag & Max FPS",
+    Desc = "Fix lag | Booster Device",
+    Callback = function()
+        pcall(function()
+            local settingsObj = settings()
+            settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+            settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+            for _, v in pairs(game:GetDescendants()) do
+                if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic
+                elseif v:IsA("Decal") or v:IsA("Texture") then v:Destroy()
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
+            end
+            local lighting = game:GetService("Lighting")
+            lighting.GlobalShadows = false
+            lighting.FogEnd = 9e9
+            lighting.Technology = Enum.Technology.Compatibility
+            if setfpscap then setfpscap(9999999) end
+        end)
+    end
+})
+
+-- ---- Khởi tạo cache và sự kiện ----
+BuildInitialCache()
+
+Workspace.DescendantAdded:Connect(function(object)
+    TrackObject(object)
+end)
+
+Workspace.DescendantRemoving:Connect(function(object)
+    UntrackObject(object)
+end)
+
+-- ============================================================
+-- KẾT THÚC PHẦN 5/5 - SCRIPT HOÀN CHỈNH
+-- ============================================================
