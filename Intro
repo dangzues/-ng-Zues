@@ -1,0 +1,326 @@
+--// MEOW HUB - CINEMATIC RED INTRO
+--// Standalone Intro File
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+
+local Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+pcall(function()
+    local Old = Parent:FindFirstChild("MEOW_HUB_INTRO")
+    if Old then
+        Old:Destroy()
+    end
+end)
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "MEOW_HUB_INTRO"
+Gui.IgnoreGuiInset = true
+Gui.ResetOnSpawn = false
+Gui.DisplayOrder = 999999
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = Parent
+
+local Background = Instance.new("Frame")
+Background.Size = UDim2.fromScale(1, 1)
+Background.BackgroundColor3 = Color3.fromRGB(3, 3, 5)
+Background.BorderSizePixel = 0
+Background.Parent = Gui
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Rotation = 90
+Gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(1, 1, 3)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(18, 0, 2)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(2, 0, 1))
+})
+Gradient.Parent = Background
+
+-- Red atmosphere
+local Atmosphere = Instance.new("Frame")
+Atmosphere.AnchorPoint = Vector2.new(0.5, 0.5)
+Atmosphere.Position = UDim2.fromScale(0.5, 0.42)
+Atmosphere.Size = UDim2.fromScale(1.3, 0.75)
+Atmosphere.BackgroundColor3 = Color3.fromRGB(255, 0, 20)
+Atmosphere.BackgroundTransparency = 0.92
+Atmosphere.BorderSizePixel = 0
+Atmosphere.Parent = Background
+
+local AtmosGradient = Instance.new("UIGradient")
+AtmosGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 1),
+    NumberSequenceKeypoint.new(0.5, 0.15),
+    NumberSequenceKeypoint.new(1, 1)
+})
+AtmosGradient.Parent = Atmosphere
+
+-- Stars
+for i = 1, 75 do
+    local Star = Instance.new("Frame")
+    Star.AnchorPoint = Vector2.new(0.5, 0.5)
+    Star.Position = UDim2.fromScale(math.random(), math.random() * 0.72)
+    local Size = math.random(1, 3)
+    Star.Size = UDim2.fromOffset(Size, Size)
+    Star.BackgroundColor3 = Color3.fromRGB(255, math.random(50, 180), math.random(50, 120))
+    Star.BorderSizePixel = 0
+    Star.BackgroundTransparency = math.random(10, 65) / 100
+    Star.Parent = Background
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(1, 0)
+    Corner.Parent = Star
+end
+
+-- Red planet
+local PlanetGlow = Instance.new("Frame")
+PlanetGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+PlanetGlow.Position = UDim2.fromScale(0.5, 0.34)
+PlanetGlow.Size = UDim2.fromScale(0.42, 0.62)
+PlanetGlow.BackgroundColor3 = Color3.fromRGB(255, 0, 15)
+PlanetGlow.BackgroundTransparency = 0.72
+PlanetGlow.BorderSizePixel = 0
+PlanetGlow.Parent = Background
+
+local PlanetGlowCorner = Instance.new("UICorner")
+PlanetGlowCorner.CornerRadius = UDim.new(1, 0)
+PlanetGlowCorner.Parent = PlanetGlow
+
+local Planet = Instance.new("Frame")
+Planet.AnchorPoint = Vector2.new(0.5, 0.5)
+Planet.Position = UDim2.fromScale(0.5, 0.34)
+Planet.Size = UDim2.fromScale(0.36, 0.54)
+Planet.BackgroundColor3 = Color3.fromRGB(95, 0, 8)
+Planet.BorderSizePixel = 0
+Planet.Parent = Background
+
+local PlanetCorner = Instance.new("UICorner")
+PlanetCorner.CornerRadius = UDim.new(1, 0)
+PlanetCorner.Parent = Planet
+
+local PlanetGradient = Instance.new("UIGradient")
+PlanetGradient.Rotation = 35
+PlanetGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 85, 85)),
+    ColorSequenceKeypoint.new(0.38, Color3.fromRGB(150, 0, 12)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 0, 5))
+})
+PlanetGradient.Parent = Planet
+
+local PlanetStroke = Instance.new("UIStroke")
+PlanetStroke.Color = Color3.fromRGB(255, 45, 45)
+PlanetStroke.Thickness = 2
+PlanetStroke.Transparency = 0.2
+PlanetStroke.Parent = Planet
+
+-- Decorative red lines
+for _, Y in ipairs({0.39, 0.52, 0.87, 0.92}) do
+    local Line = Instance.new("Frame")
+    Line.AnchorPoint = Vector2.new(0.5, 0.5)
+    Line.Position = UDim2.fromScale(0.5, Y)
+    Line.Size = UDim2.fromScale(0.92, 0.002)
+    Line.BackgroundColor3 = Color3.fromRGB(255, 20, 25)
+    Line.BackgroundTransparency = 0.35
+    Line.BorderSizePixel = 0
+    Line.Parent = Background
+end
+
+-- Title holder clips everything safely
+local TitleHolder = Instance.new("Frame")
+TitleHolder.AnchorPoint = Vector2.new(0.5, 0.5)
+TitleHolder.Position = UDim2.fromScale(0.5, 0.46)
+TitleHolder.Size = UDim2.fromScale(0.94, 0.24)
+TitleHolder.BackgroundTransparency = 1
+TitleHolder.ClipsDescendants = true
+TitleHolder.Parent = Background
+
+local Word = "MEOW HUB"
+local Letters = {}
+
+for i = 1, #Word do
+    local Char = Word:sub(i, i)
+
+    local Letter = Instance.new("TextLabel")
+    Letter.AnchorPoint = Vector2.new(0.5, 0.5)
+    Letter.BackgroundTransparency = 1
+    Letter.Size = UDim2.fromScale(0.115, 0.9)
+
+    local X = 0.09 + (i - 1) * (0.82 / math.max(#Word - 1, 1))
+    local OffsetY = ((i % 3) - 2) * 0.035
+
+    Letter.Position = UDim2.fromScale(X, -0.4)
+    Letter.Text = Char
+    Letter.TextScaled = true
+    Letter.Font = Enum.Font.Antique
+    Letter.TextColor3 = Color3.fromRGB(255, 235, 235)
+    Letter.TextStrokeColor3 = Color3.fromRGB(255, 0, 15)
+    Letter.TextStrokeTransparency = 0.08
+    Letter.Rotation = ((i * 11) % 9) - 4
+    Letter.Parent = TitleHolder
+
+    local Constraint = Instance.new("UITextSizeConstraint")
+    Constraint.MaxTextSize = 110
+    Constraint.MinTextSize = 20
+    Constraint.Parent = Letter
+
+    local Glow = Instance.new("TextLabel")
+    Glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    Glow.Position = UDim2.fromOffset(4, 5)
+    Glow.Size = UDim2.fromScale(1, 1)
+    Glow.BackgroundTransparency = 1
+    Glow.Text = Char
+    Glow.TextScaled = true
+    Glow.Font = Enum.Font.Antique
+    Glow.TextColor3 = Color3.fromRGB(255, 0, 10)
+    Glow.TextTransparency = 0.45
+    Glow.ZIndex = 0
+    Glow.Parent = Letter
+
+    local GlowConstraint = Instance.new("UITextSizeConstraint")
+    GlowConstraint.MaxTextSize = 110
+    GlowConstraint.MinTextSize = 20
+    GlowConstraint.Parent = Glow
+
+    Letters[i] = {Object = Letter, X = X, Y = 0.5 + OffsetY}
+end
+
+-- Loading text
+local Loading = Instance.new("TextLabel")
+Loading.AnchorPoint = Vector2.new(0.5, 0.5)
+Loading.Position = UDim2.fromScale(0.5, 0.69)
+Loading.Size = UDim2.fromScale(0.7, 0.06)
+Loading.BackgroundTransparency = 1
+Loading.Text = "L O A D I N G . . ."
+Loading.Font = Enum.Font.GothamMedium
+Loading.TextScaled = true
+Loading.TextColor3 = Color3.fromRGB(255, 110, 110)
+Loading.TextTransparency = 1
+Loading.Parent = Background
+
+local LoadingConstraint = Instance.new("UITextSizeConstraint")
+LoadingConstraint.MaxTextSize = 25
+LoadingConstraint.MinTextSize = 11
+LoadingConstraint.Parent = Loading
+
+-- Progress frame
+local ProgressOuter = Instance.new("Frame")
+ProgressOuter.AnchorPoint = Vector2.new(0.5, 0.5)
+ProgressOuter.Position = UDim2.fromScale(0.5, 0.77)
+ProgressOuter.Size = UDim2.fromScale(0.58, 0.055)
+ProgressOuter.BackgroundColor3 = Color3.fromRGB(12, 0, 2)
+ProgressOuter.BorderSizePixel = 0
+ProgressOuter.Parent = Background
+
+local OuterCorner = Instance.new("UICorner")
+OuterCorner.CornerRadius = UDim.new(0, 7)
+OuterCorner.Parent = ProgressOuter
+
+local OuterStroke = Instance.new("UIStroke")
+OuterStroke.Color = Color3.fromRGB(255, 40, 45)
+OuterStroke.Thickness = 2
+OuterStroke.Parent = ProgressOuter
+
+local Progress = Instance.new("Frame")
+Progress.Position = UDim2.fromScale(0.012, 0.12)
+Progress.Size = UDim2.fromScale(0, 0.76)
+Progress.BackgroundColor3 = Color3.fromRGB(255, 15, 25)
+Progress.BorderSizePixel = 0
+Progress.Parent = ProgressOuter
+
+local ProgressCorner = Instance.new("UICorner")
+ProgressCorner.CornerRadius = UDim.new(0, 5)
+ProgressCorner.Parent = Progress
+
+local ProgressGradient = Instance.new("UIGradient")
+ProgressGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(130, 0, 8)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 30, 30)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 230, 230))
+})
+ProgressGradient.Parent = Progress
+
+local Percent = Instance.new("TextLabel")
+Percent.AnchorPoint = Vector2.new(0.5, 0.5)
+Percent.Position = UDim2.fromScale(0.5, 0.835)
+Percent.Size = UDim2.fromScale(0.35, 0.06)
+Percent.BackgroundTransparency = 1
+Percent.Text = "0%"
+Percent.Font = Enum.Font.GothamBold
+Percent.TextScaled = true
+Percent.TextColor3 = Color3.fromRGB(255, 160, 160)
+Percent.Parent = Background
+
+local PercentConstraint = Instance.new("UITextSizeConstraint")
+PercentConstraint.MaxTextSize = 34
+PercentConstraint.MinTextSize = 16
+PercentConstraint.Parent = Percent
+
+local System = Instance.new("TextLabel")
+System.AnchorPoint = Vector2.new(0.5, 0.5)
+System.Position = UDim2.fromScale(0.5, 0.895)
+System.Size = UDim2.fromScale(0.8, 0.04)
+System.BackgroundTransparency = 1
+System.Text = "M E O W   H U B  -  S Y S T E M   I N I T I A L I Z I N G"
+System.Font = Enum.Font.GothamMedium
+System.TextScaled = true
+System.TextColor3 = Color3.fromRGB(255, 95, 95)
+System.TextTransparency = 0.2
+System.Parent = Background
+
+local SystemConstraint = Instance.new("UITextSizeConstraint")
+SystemConstraint.MaxTextSize = 16
+SystemConstraint.MinTextSize = 7
+SystemConstraint.Parent = System
+
+-- Falling title animation
+for i, Data in ipairs(Letters) do
+    task.delay((i - 1) * 0.075, function()
+        TweenService:Create(
+            Data.Object,
+            TweenInfo.new(0.65, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Position = UDim2.fromScale(Data.X, Data.Y)}
+        ):Play()
+    end)
+end
+
+task.delay(0.45, function()
+    TweenService:Create(Loading, TweenInfo.new(0.4), {TextTransparency = 0.1}):Play()
+end)
+
+-- Loading animation
+for Value = 0, 100 do
+    local Ratio = Value / 100
+
+    TweenService:Create(
+        Progress,
+        TweenInfo.new(0.025, Enum.EasingStyle.Linear),
+        {Size = UDim2.fromScale(Ratio * 0.976, 0.76)}
+    ):Play()
+
+    Percent.Text = tostring(Value) .. "%"
+    task.wait(0.018 + math.random() * 0.012)
+end
+
+task.wait(0.5)
+
+-- Fade out
+local FadeInfo = TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+
+for _, Object in ipairs(Gui:GetDescendants()) do
+    if Object:IsA("TextLabel") then
+        TweenService:Create(Object, FadeInfo, {
+            TextTransparency = 1,
+            TextStrokeTransparency = 1
+        }):Play()
+    elseif Object:IsA("Frame") then
+        TweenService:Create(Object, FadeInfo, {
+            BackgroundTransparency = 1
+        }):Play()
+    elseif Object:IsA("UIStroke") then
+        TweenService:Create(Object, FadeInfo, {
+            Transparency = 1
+        }):Play()
+    end
+end
+
+task.wait(0.7)
+Gui:Destroy()
