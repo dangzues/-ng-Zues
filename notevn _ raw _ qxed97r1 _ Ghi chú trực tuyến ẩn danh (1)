@@ -1,0 +1,1472 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: https://notevn.com/raw/qxed97r1
+Subject: =?utf-8?Q?notevn=20/=20raw=20/=20qxed97r1=20|=20Ghi=20ch=C3=BA=20tr=E1=BB?=
+ =?utf-8?Q?=B1c=20tuy=E1=BA=BFn=20=E1=BA=A9n=20danh?=
+Date: Tue, 1 Sep 2026 19:13:10 +0700
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--bIqvOxqVhVbhxxxvbxBtSqXJOFw4jNFpJfXOQeu373----"
+
+
+------MultipartBoundary--bIqvOxqVhVbhxxxvbxBtSqXJOFw4jNFpJfXOQeu373----
+Content-Type: text/html
+Content-ID: <frame-1FF093D1F75E021CB81606E2DAEE9F57@mhtml.blink>
+Content-Transfer-Encoding: binary
+Content-Location: https://notevn.com/raw/qxed97r1
+
+<!DOCTYPE html><html lang="vi"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><link rel="stylesheet" type="text/css" href="cid:css-e5a21ce2-4713-4b12-951f-ed07e032f7d8@mhtml.blink" /><meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"><meta name="description" content="Lưu trữ văn bản, đoạn văn, code của bạn ẩn danh vĩnh viễn cho dù bạn có đặt mật khẩu hay không!"><meta name="keywords" content="code, notepad, note, việt, nam, lưu, trữ, đoạn, văn, mật, khẩu, vĩnh, viễn"><meta http-equiv="X-UA-Compatible" content="ie=edge"><title>notevn / raw / qxed97r1 | Ghi chú trực tuyến ẩn danh</title><link rel="shortcut icon" href="https://notevn.com/assets/img/textvn_clone.ico" type="image/x-icon"><meta property="og:type" content="website"><meta property="og:title" content="notevn / raw / qxed97r1 | Ghi chú trực tuyến ẩn danh&gt;&lt;meta property=" og:description"=""><meta property="og:url" content="https://notevn.com/raw/qxed97r1"><meta property="og:image" content="https://notevn.com/assets/img/notevn_logo5.5K.png"><link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet"></head><body><pre><div class="editable ql-container ql-snow ql-disabled" spellcheck="false"><div class="ql-editor" data-gramm="false" contenteditable="false"><p>local WindUI = loadstring(game:HttpGet(
+ "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+local Alurt = loadstring(game:HttpGet(
+ "https://raw.githubusercontent.com/azir-py/project/refs/heads/main/Zwolf/AlurtUI.lua"
+))()
+
+local function NotifyFeature(featureName, enabled)
+ pcall(function()
+ Alurt.CreateNode({
+ Title = featureName .. (enabled and " ON" or " OFF"),
+ Content = enabled and (featureName .. " đã được bật") or (featureName .. " đã được tắt"),
+ Audio = "rbxassetid://17208361335",
+ Length = 3,
+ Image = "rbxassetid://6031068421",
+ BarColor = enabled and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(255, 75, 75)
+ })
+ end)
+end
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ===== CẤU HÌNH =====
+local Config = {
+ Godmode = false,
+ BoostLevel = 1,
+ MinBoost = 1,
+ MaxBoost = 30,
+ BaseWalkSpeed = 16,
+ PromptDistance = 30,
+ PromptHoldDuration = 0,
+ DeleteTrap = false,
+ EspTrap = false,
+ AntiTrapBeta = false,
+ EspParasite = false,
+ DeleteTreadmill = false,
+ AntiRagdoll = false,
+ InstantEgg = false,
+ AutoBat = false,
+ EspPlayer = false,
+ AutoAttackBloom = false,
+ AutoFixLagOnEnable = true,
+ AutoStealBest = false,
+ FlightHeight = 70,
+ NoclipEnabled = false,
+ BASE_POS = Vector3.new(543.38, 68.58, -359.13)
+}
+
+local Connections = {
+ Heartbeat = nil,
+ RenderStepped = nil,
+ CharacterAdded = nil,
+ WorkspaceAdded = nil,
+ WorkspaceRemoving = nil,
+ HealthChanged = nil,
+ TrapAdded = nil,
+ TrapCleanup = nil,
+ TrapESP = nil,
+ ParasiteESP = nil,
+ TreadmillAdded = nil,
+ TreadmillCleanup = nil,
+ AntiRagdoll = nil,
+ InstantEgg = nil,
+ AutoBat = nil,
+ EspPlayer = nil,
+ AutoAttackBloom = nil,
+ AutoStealLoop = nil
+}
+
+local TrapCache = {}
+local ParasiteCache = {}
+local TreadmillCache = {}
+local EggPromptCache = {}
+local TrapESPObjects = {}
+local ParasiteESPObjects = {}
+local PlayerESPObjects = {}
+
+local TargetPrompt = nil
+local PromptLoopRunning = false
+local LastRagdollReset = 0
+local AntiRagdollResetCooldown = 0
+
+local ATTACK_RANGE = 20
+
+local BAT_NAMES = {
+ "bat",
+ "gậy"
+}
+
+local HUM_PROPERTIES = {
+ "RigType", "HipHeight", "JumpPower", "JumpHeight", "UseJumpPower",
+ "AutoRotate", "MaxSlopeAngle", "DisplayDistanceType", "NameDisplayDistance",
+ "HealthDisplayDistance", "AutomaticScalingEnabled", "BreakJointsOnDeath",
+ "RequiresNeck", "EvaluateStateMachine"
+}
+local TRAP_WORDS = { "trap", "cage", "snare" }
+local PARASITE_WORDS = { "parasite", "parasites" }
+
+local function ApplyFixLagAuto()
+ if not Config.AutoFixLagOnEnable then return end
+ pcall(function()
+ local settingsObj = settings()
+ settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+ settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+ local lighting = game:GetService("Lighting")
+ lighting.GlobalShadows = false
+ lighting.FogEnd = 9e9
+ lighting.Technology = Enum.Technology.Compatibility
+ if setfpscap then setfpscap(9999999) end
+ end)
+end
+
+local function FormatSpeedNumber(val)
+ local num = tonumber(val)
+ if not num then return tostring(val or "N/A") end
+ if num &gt;= 1e12 then return string.format("%.2fT", num / 1e12)
+ elseif num &gt;= 1e9 then return string.format("%.2fB", num / 1e9)
+ elseif num &gt;= 1e6 then return string.format("%.2fM", num / 1e6)
+ elseif num &gt;= 1e3 then return string.format("%.2fK", num / 1e3)
+ else return string.format("%d", math.floor(num)) end
+end
+
+local function DisconnectConnection(name)
+ local connection = Connections[name]
+ if connection then
+ pcall(function() connection:Disconnect() end)
+ Connections[name] = nil
+ end
+end
+
+local function GetCharacter()
+ return LocalPlayer.Character
+end
+
+local function GetHumanoid(character)
+ if not character then return nil end
+ return character:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetRoot(character)
+ if not character then return nil end
+ return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetAdaptiveSpeed()
+ local boost = math.clamp(tonumber(Config.BoostLevel) or Config.MinBoost, Config.MinBoost, Config.MaxBoost)
+ return Config.BaseWalkSpeed + (boost * 40)
+end
+
+local TreadmillKeywords = {
+ "treadmill", "máy chạy", "may chay", "running machine"
+}
+
+local function NormalizeName(value)
+ value = tostring(value or "")
+ value = string.lower(value)
+ return value
+end
+
+local function ContainsKeyword(text, keywordsList)
+ text = NormalizeName(text)
+ for _, keyword in ipairs(keywordsList) do
+ if string.find(text, keyword, 1, true) then return true end
+ end
+ return false
+end
+
+local function IsTrapObject(object)
+ if not object or object == Workspace then return false end
+ if ContainsKeyword(object.Name, TRAP_WORDS) then return true end
+ local attributes = { "Trap", "Type", "ObjectType", "ItemType", "Name", "DisplayName" }
+ for _, attributeName in ipairs(attributes) do
+ local success, value = pcall(function() return object:GetAttribute(attributeName) end)
+ if success and value ~= nil then
+ if ContainsKeyword(value, TRAP_WORDS) then return true end
+ end
+ end
+ return false
+end
+
+local function IsParasiteObject(object)
+ if not object or object == Workspace then return false end
+ if ContainsKeyword(object.Name, PARASITE_WORDS) then return true end
+ local attributes = { "Parasite", "Type", "ObjectType", "ItemType", "Name", "DisplayName" }
+ for _, attributeName in ipairs(attributes) do
+ local success, value = pcall(function() return object:GetAttribute(attributeName) end)
+ if success and value ~= nil then
+ if ContainsKeyword(value, PARASITE_WORDS) then return true end
+ end
+ end
+ return false
+end
+
+local function IsTreadmillObject(object)
+ if not object or object == Workspace then return false end
+ if ContainsKeyword(object.Name, TreadmillKeywords) then return true end
+ return false
+end
+
+local function GetESPAdornee(object)
+ if not object then return nil end
+ if object:IsA("BasePart") then return object end
+ if object:IsA("Model") then
+ local primary = object.PrimaryPart
+ if primary and primary:IsA("BasePart") then return primary end
+ local root = object:FindFirstChildWhichIsA("BasePart", true)
+ return root
+ end
+ return nil
+end
+
+local function RemoveTrapESP(object)
+ local data = TrapESPObjects[object]
+ if not data then return end
+ if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+ if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+ TrapESPObjects[object] = nil
+end
+
+local function CreateTrapESP(object)
+ if not Config.EspTrap or not object or not object.Parent or TrapESPObjects[object] then return end
+ local adornee = GetESPAdornee(object)
+ if not adornee then return end
+ local highlight = Instance.new("Highlight")
+ highlight.Name = "VxzTrapHighlight"
+ highlight.Adornee = object:IsA("Model") and object or adornee
+ highlight.FillColor = Color3.fromRGB(255, 0, 0)
+ highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+ highlight.FillTransparency = 0.55
+ highlight.OutlineTransparency = 0
+ highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+ highlight.Parent = object
+ local billboard = Instance.new("BillboardGui")
+ billboard.Name = "VxzTrapLabel"
+ billboard.Adornee = adornee
+ billboard.AlwaysOnTop = true
+ billboard.LightInfluence = 0
+ billboard.MaxDistance = 1000
+ billboard.Size = UDim2.fromOffset(120, 38)
+ billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+ billboard.Parent = object
+ local label = Instance.new("TextLabel")
+ label.Name = "TrapText"
+ label.BackgroundTransparency = 1
+ label.Size = UDim2.fromScale(1, 1)
+ label.Font = Enum.Font.GothamBold
+ label.Text = "Trap !"
+ label.TextSize = 18
+ label.TextColor3 = Color3.fromRGB(255, 0, 0)
+ label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+ label.TextStrokeTransparency = 0
+ label.TextXAlignment = Enum.TextXAlignment.Center
+ label.TextYAlignment = Enum.TextYAlignment.Center
+ label.Parent = billboard
+ TrapESPObjects[object] = { Highlight = highlight, Billboard = billboard }
+end
+
+local function RemoveParasiteESP(object)
+ local data = ParasiteESPObjects[object]
+ if not data then return end
+ if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+ if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+ ParasiteESPObjects[object] = nil
+end
+
+local function CreateParasiteESP(object)
+ if not Config.EspParasite or not object or not object.Parent or ParasiteESPObjects[object] then return end
+ local adornee = GetESPAdornee(object)
+ if not adornee then return end
+ local highlight = Instance.new("Highlight")
+ highlight.Name = "VxzParasiteHighlight"
+ highlight.Adornee = object:IsA("Model") and object or adornee
+ highlight.FillColor = Color3.fromRGB(0, 255, 128)
+ highlight.OutlineColor = Color3.fromRGB(0, 255, 128)
+ highlight.FillTransparency = 0.55
+ highlight.OutlineTransparency = 0
+ highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+ highlight.Parent = object
+ local billboard = Instance.new("BillboardGui")
+ billboard.Name = "VxzParasiteLabel"
+ billboard.Adornee = adornee
+ billboard.AlwaysOnTop = true
+ billboard.LightInfluence = 0
+ billboard.MaxDistance = 1000
+ billboard.Size = UDim2.fromOffset(140, 38)
+ billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+ billboard.Parent = object
+ local label = Instance.new("TextLabel")
+ label.Name = "ParasiteText"
+ label.BackgroundTransparency = 1
+ label.Size = UDim2.fromScale(1, 1)
+ label.Font = Enum.Font.GothamBold
+ label.Text = "Parasite !"
+ label.TextSize = 18
+ label.TextColor3 = Color3.fromRGB(0, 255, 128)
+ label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+ label.TextStrokeTransparency = 0
+ label.TextXAlignment = Enum.TextXAlignment.Center
+ label.TextYAlignment = Enum.TextYAlignment.Center
+ label.Parent = billboard
+ ParasiteESPObjects[object] = { Highlight = highlight, Billboard = billboard }
+end
+
+local function ScanAllObjects()
+ for _, object in ipairs(Workspace:GetDescendants()) do
+ if IsTrapObject(object) then
+ TrapCache[object] = true
+ if Config.EspTrap then CreateTrapESP(object) end
+ if Config.DeleteTrap then pcall(function() object:Destroy() end) end
+ end
+ if IsParasiteObject(object) then
+ ParasiteCache[object] = true
+ if Config.EspParasite then CreateParasiteESP(object) end
+ end
+ if IsTreadmillObject(object) then
+ TreadmillCache[object] = true
+ if Config.DeleteTreadmill then pcall(function() object:Destroy() end) end
+ end
+ end
+end
+
+local function IsEggPrompt(prompt)
+ if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+ local nameText = string.lower(tostring(prompt.Name) .. " " .. tostring(prompt.ObjectText))
+ local actionText = string.lower(tostring(prompt.ActionText))
+ local nameMatch = string.find(nameText, "trứng", 1, true) or string.find(nameText, "trung", 1, true) or string.find(nameText, "egg", 1, true)
+ local actionMatch = string.find(actionText, "trộm", 1, true) or string.find(actionText, "trom", 1, true) or string.find(actionText, "cắp", 1, true) or string.find(actionText, "steal", 1, true)
+ return nameMatch ~= nil or actionMatch ~= nil
+end
+
+local function ScanAllEggPrompts()
+ for _, object in ipairs(Workspace:GetDescendants()) do
+ if object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+ EggPromptCache[object] = true
+ end
+ end
+end
+
+task.spawn(function()
+ while task.wait(2) do
+ if Config.AntiTrapBeta then
+ for _, obj in ipairs(Workspace:GetDescendants()) do
+ if obj:IsA("BasePart") then
+ local objName = string.lower(obj.Name)
+ for _, word in ipairs(TRAP_WORDS) do
+ if string.find(objName, word) then
+ pcall(function()
+ obj.CanTouch = false
+ obj.CanCollide = false
+ obj.Anchored = true
+ end)
+ break
+ end
+ end
+ end
+ end
+ end
+ end
+end)
+
+local function StartTrapESP()
+ DisconnectConnection("TrapESP")
+ Connections.TrapESP = RunService.Heartbeat:Connect(function()
+ if not Config.EspTrap then return end
+ for object in pairs(TrapESPObjects) do
+ if not object or not object.Parent or not IsTrapObject(object) then
+ RemoveTrapESP(object)
+ end
+ end
+ end)
+end
+
+local function StopTrapESP()
+ DisconnectConnection("TrapESP")
+ for object in pairs(TrapESPObjects) do RemoveTrapESP(object) end
+end
+
+local function StartParasiteESP()
+ DisconnectConnection("ParasiteESP")
+ Connections.ParasiteESP = RunService.Heartbeat:Connect(function()
+ if not Config.EspParasite then return end
+ for object in pairs(ParasiteESPObjects) do
+ if not object or not object.Parent or not IsParasiteObject(object) then
+ RemoveParasiteESP(object)
+ end
+ end
+ end)
+end
+
+local function StopParasiteESP()
+ DisconnectConnection("ParasiteESP")
+ for object in pairs(ParasiteESPObjects) do RemoveParasiteESP(object) end
+end
+
+local function DeleteTrapObject(object)
+ if not Config.DeleteTrap or not object or not object.Parent or not IsTrapObject(object) then return end
+ TrapCache[object] = true
+ pcall(function() object:Destroy() end)
+end
+
+local function StartTrapScanner()
+ DisconnectConnection("TrapAdded")
+ DisconnectConnection("TrapCleanup")
+ Connections.TrapAdded = Workspace.DescendantAdded:Connect(function(object)
+ if Config.DeleteTrap and IsTrapObject(object) then
+ DeleteTrapObject(object)
+ elseif Config.EspTrap and IsTrapObject(object) then
+ CreateTrapESP(object)
+ elseif Config.EspParasite and IsParasiteObject(object) then
+ CreateParasiteESP(object)
+ end
+ end)
+end
+
+local function EnableDeleteTrap()
+ Config.DeleteTrap = true
+ ApplyFixLagAuto()
+ StartTrapScanner()
+end
+
+local function DisableDeleteTrap()
+ Config.DeleteTrap = false
+end
+
+local function EnableTrapESP()
+ Config.EspTrap = true
+ ApplyFixLagAuto()
+ StartTrapESP()
+end
+
+local function DisableTrapESP()
+ Config.EspTrap = false
+ StopTrapESP()
+end
+
+local function EnableParasiteESP()
+ Config.EspParasite = true
+ ApplyFixLagAuto()
+ ScanAllObjects()
+ StartParasiteESP()
+end
+
+local function DisableParasiteESP()
+ Config.EspParasite = false
+ StopParasiteESP()
+end
+
+local function EnableDeleteTreadmill()
+ Config.DeleteTreadmill = true
+ ApplyFixLagAuto()
+end
+
+local function DisableDeleteTreadmill()
+ Config.DeleteTreadmill = false
+end
+
+-- ================= BEST ESP XỊN NHẤT (PRO PLAYER ESP) =================
+local function RemovePlayerESP(player)
+ local data = PlayerESPObjects[player]
+ if data then
+ if data.Highlight then pcall(function() data.Highlight:Destroy() end) end
+ if data.Billboard then pcall(function() data.Billboard:Destroy() end) end
+ PlayerESPObjects[player] = nil
+ end
+end
+
+local function GetPlayerSpeedFromLeaderboard(player)
+ local leaderstats = player:FindFirstChild("leaderstats")
+ if leaderstats then
+ local speedStat = leaderstats:FindFirstChild("Speed") or leaderstats:FindFirstChild("speed") or leaderstats:FindFirstChild("WalkSpeed")
+ if speedStat then return FormatSpeedNumber(speedStat.Value) end
+ end
+ local char = player.Character
+ if char then
+ local hum = GetHumanoid(char)
+ if hum then return FormatSpeedNumber(hum.WalkSpeed) end
+ end
+ return "N/A"
+end
+
+local function CreatePlayerESP(player)
+ if player == LocalPlayer or not Config.EspPlayer then return end
+ local char = player.Character
+ if not char then return end
+ local head = char:FindFirstChild("Head")
+ if not head then return end
+ RemovePlayerESP(player)
+
+ local highlight = Instance.new("Highlight")
+ highlight.Name = "VxzProPlayerHighlight"
+ highlight.Adornee = char
+ highlight.FillColor = Color3.fromRGB(0, 162, 255)
+ highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+ highlight.FillTransparency = 0.65
+ highlight.OutlineTransparency = 0.1
+ highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+ highlight.Parent = char
+
+ local billboard = Instance.new("BillboardGui")
+ billboard.Name = "VxzProPlayerLabel"
+ billboard.Adornee = head
+ billboard.AlwaysOnTop = true
+ billboard.LightInfluence = 0
+ billboard.MaxDistance = 2500
+ billboard.Size = UDim2.fromOffset(220, 65)
+ billboard.StudsOffset = Vector3.new(0, 3, 0)
+ billboard.Parent = head
+
+ local mainFrame = Instance.new("Frame")
+ mainFrame.Name = "MainFrame"
+ mainFrame.BackgroundTransparency = 0.35
+ mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ mainFrame.Size = UDim2.fromScale(1, 1)
+ mainFrame.Parent = billboard
+
+ local corner = Instance.new("UICorner")
+ corner.CornerRadius = UDim.new(0, 6)
+ corner.Parent = mainFrame
+
+ local stroke = Instance.new("UIStroke")
+ stroke.Color = Color3.fromRGB(0, 170, 255)
+ stroke.Thickness = 1.2
+ stroke.Parent = mainFrame
+
+ local label = Instance.new("TextLabel")
+ label.Name = "InfoText"
+ label.BackgroundTransparency = 1
+ label.Size = UDim2.fromScale(1, 0.75)
+ label.Position = UDim2.fromScale(0, 0)
+ label.Font = Enum.Font.GothamBold
+ label.TextSize = 13
+ label.TextColor3 = Color3.fromRGB(255, 255, 255)
+ label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+ label.TextStrokeTransparency = 0
+ label.TextXAlignment = Enum.TextXAlignment.Center
+ label.TextYAlignment = Enum.TextYAlignment.Center
+ label.Parent = mainFrame
+
+ local healthBg = Instance.new("Frame")
+ healthBg.Name = "HealthBg"
+ healthBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ healthBg.BorderSizePixel = 0
+ healthBg.Size = UDim2.new(0.9, 0, 0, 6)
+ healthBg.Position = UDim2.new(0.05, 0, 0.78, 0)
+ healthBg.Parent = mainFrame
+
+ local healthCorner = Instance.new("UICorner")
+ healthCorner.CornerRadius = UDim.new(0, 3)
+ healthCorner.Parent = healthBg
+
+ local healthBar = Instance.new("Frame")
+ healthBar.Name = "HealthBar"
+ healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+ healthBar.BorderSizePixel = 0
+ healthBar.Size = UDim2.fromScale(1, 1)
+ healthBar.Parent = healthBg
+
+ local barCorner = Instance.new("UICorner")
+ barCorner.CornerRadius = UDim.new(0, 3)
+ barCorner.Parent = healthBar
+
+ PlayerESPObjects[player] = { Highlight = highlight, Billboard = billboard, Label = label, HealthBar = healthBar }
+end
+
+local function UpdatePlayerESP()
+ local myChar = GetCharacter()
+ local myRoot = GetRoot(myChar)
+ for player, data in pairs(PlayerESPObjects) do
+ if player and player.Parent and player.Character and player.Character:FindFirstChild("Head") then
+ local targetChar = player.Character
+ local targetRoot = GetRoot(targetChar)
+ local targetHum = GetHumanoid(targetChar)
+ local distStr = "N/A"
+ if myRoot and targetRoot then
+ local dist = math.floor((myRoot.Position - targetRoot.Position).Magnitude)
+ distStr = tostring(dist) .. "m"
+ end
+ local speedStr = GetPlayerSpeedFromLeaderboard(player)
+ 
+ if data.Label then
+ data.Label.Text = string.format("%s | [%s]\nSpeed: %s", player.DisplayName or player.Name, distStr, speedStr)
+ end
+
+ if data.HealthBar and targetHum then
+ local hpPercent = math.clamp(targetHum.Health / math.max(targetHum.MaxHealth, 1), 0, 1)
+ data.HealthBar.Size = UDim2.fromScale(hpPercent, 1)
+ data.HealthBar.BackgroundColor3 = Color3.fromRGB(255 * (1 - hpPercent), 255 * hpPercent, 50)
+ end
+ else
+ RemovePlayerESP(player)
+ end
+ end
+end
+
+local function StartPlayerESP()
+ DisconnectConnection("EspPlayer")
+ ApplyFixLagAuto()
+ for _, player in ipairs(Players:GetPlayers()) do
+ if player ~= LocalPlayer then CreatePlayerESP(player) end
+ end
+ Connections.EspPlayer = RunService.Heartbeat:Connect(function()
+ if not Config.EspPlayer then return end
+ for _, player in ipairs(Players:GetPlayers()) do
+ if player ~= LocalPlayer and not PlayerESPObjects[player] and player.Character then
+ CreatePlayerESP(player)
+ end
+ end
+ UpdatePlayerESP()
+ end)
+end
+
+local function StopPlayerESP()
+ DisconnectConnection("EspPlayer")
+ for player in pairs(PlayerESPObjects) do RemovePlayerESP(player) end
+end
+
+local function ApplyInstantEggPrompt(prompt)
+ if prompt and prompt:IsA("ProximityPrompt") and IsEggPrompt(prompt) then
+ pcall(function() prompt.HoldDuration = 0 end)
+ end
+end
+
+local function StartInstantEgg()
+ DisconnectConnection("InstantEgg")
+ ApplyFixLagAuto()
+ for _, object in ipairs(Workspace:GetDescendants()) do
+ if object:IsA("ProximityPrompt") then ApplyInstantEggPrompt(object) end
+ end
+ Connections.InstantEgg = Workspace.DescendantAdded:Connect(function(object)
+ if Config.InstantEgg and object:IsA("ProximityPrompt") then
+ ApplyInstantEggPrompt(object)
+ end
+ end)
+end
+
+local function StopInstantEgg()
+ DisconnectConnection("InstantEgg")
+end
+
+local function ReplaceHumanoid(character)
+ if not Config.Godmode then return end
+ local oldHumanoid = character:WaitForChild("Humanoid", 5)
+ if not oldHumanoid then return end
+ local data = {}
+ for _, prop in ipairs(HUM_PROPERTIES) do
+ local ok, val = pcall(function() return oldHumanoid[prop] end)
+ if ok then data[prop] = val end
+ end
+ local walkSpeed = GetAdaptiveSpeed()
+ pcall(function() oldHumanoid:Destroy() end)
+ RunService.Heartbeat:Wait()
+ local newHumanoid = Instance.new("Humanoid")
+ for prop, val in pairs(data) do
+ pcall(function() newHumanoid[prop] = val end)
+ end
+ newHumanoid.Parent = character
+ RunService.Heartbeat:Wait()
+ newHumanoid.WalkSpeed = walkSpeed
+ pcall(function() newHumanoid:ChangeState(Enum.HumanoidStateType.Landed) end)
+ local animateScript = character:FindFirstChild("Animate")
+ if animateScript then
+ animateScript.Enabled = false
+ task.spawn(function()
+ task.wait(0.05)
+ if animateScript and animateScript.Parent then
+ animateScript.Enabled = true
+ end
+ end)
+ end
+ local camera = Workspace.CurrentCamera
+ if camera then
+ pcall(function() camera.CameraSubject = newHumanoid end)
+ end
+end
+
+local function SetupAntiDie()
+ if not Config.Godmode then return end
+ DisconnectConnection("HealthChanged")
+ local character = GetCharacter()
+ if not character then return end
+ local humanoid = GetHumanoid(character)
+ if not humanoid then return end
+ pcall(function()
+ humanoid.BreakJointsOnDeath = false
+ humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+ humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+ humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+ end)
+ Connections.HealthChanged = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+ if not Config.Godmode then return end
+ if humanoid.Health &lt;= 0 then
+ pcall(function() humanoid.Health = humanoid.MaxHealth end)
+ end
+ end)
+end
+
+local function ForceAntiRagdollReset()
+ local char = GetCharacter()
+ if not char then return end
+ local hum = GetHumanoid(char)
+ local root = GetRoot(char)
+ if not hum or not root or hum.Health &lt;= 0 then return end
+ pcall(function()
+ hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+ root.Velocity = Vector3.zero
+ root.RotVelocity = Vector3.zero
+ root.AssemblyLinearVelocity = Vector3.zero
+ root.AssemblyAngularVelocity = Vector3.zero
+ for _, obj in ipairs(char:GetDescendants()) do
+ if obj:IsA("Motor6D") or obj:IsA("Constraint") then
+ obj.Enabled = true
+ end
+ end
+ if Workspace.CurrentCamera then
+ Workspace.CurrentCamera.CameraSubject = hum
+ end
+ hum.AutoRotate = true
+ hum.PlatformStand = false
+ hum.Sit = false
+ end)
+end
+
+local function StartAntiRagdoll()
+ DisconnectConnection("AntiRagdoll")
+ ApplyFixLagAuto()
+ Connections.AntiRagdoll = RunService.Heartbeat:Connect(function()
+ if not Config.AntiRagdoll then return end
+ local char = GetCharacter()
+ if not char then return end
+ local hum = GetHumanoid(char)
+ if not hum or hum.Health &lt;= 0 then return end
+ local state = hum:GetState()
+ local isRagdolled = (state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown)
+ if isRagdolled then
+ local now = tick()
+ if now - AntiRagdollResetCooldown &gt; 0.15 then
+ AntiRagdollResetCooldown = now
+ ForceAntiRagdollReset()
+ end
+ end
+ end)
+end
+
+local function StopAntiRagdoll()
+ DisconnectConnection("AntiRagdoll")
+end
+
+local function isBat(tool)
+ if not tool or not tool:IsA("Tool") then return false end
+ local name = tool.Name:lower()
+ for _, keyword in ipairs(BAT_NAMES) do
+ if name:find(keyword, 1, true) then return true end
+ end
+ return false
+end
+
+local function getBat()
+ local character = GetCharacter()
+ local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+ if character then
+ for _, object in ipairs(character:GetChildren()) do
+ if isBat(object) then return object end
+ end
+ end
+ if backpack then
+ for _, object in ipairs(backpack:GetChildren()) do
+ if isBat(object) then return object end
+ end
+ end
+ return nil
+end
+
+local function equipBat()
+ local character = GetCharacter()
+ if not character then return nil end
+ local humanoid = GetHumanoid(character)
+ if not humanoid then return nil end
+ local bat = getBat()
+ if not bat then return nil end
+ if bat.Parent ~= character then
+ pcall(function() humanoid:EquipTool(bat) end)
+ task.wait()
+ end
+ return bat
+end
+
+local function getNearestEnemy(maxRange)
+ local character = GetCharacter()
+ if not character then return nil end
+ local root = GetRoot(character)
+ if not root then return nil end
+ local nearestCharacter = nil
+ local nearestDistance = maxRange or ATTACK_RANGE
+ for _, player in ipairs(Players:GetPlayers()) do
+ if player ~= LocalPlayer then
+ local targetCharacter = player.Character
+ if targetCharacter then
+ local targetRoot = GetRoot(targetCharacter)
+ local targetHumanoid = GetHumanoid(targetCharacter)
+ if targetRoot and targetHumanoid and targetHumanoid.Health &gt; 0 then
+ local distance = (targetRoot.Position - root.Position).Magnitude
+ if distance &lt;= nearestDistance then
+ nearestDistance = distance
+ nearestCharacter = targetCharacter
+ end
+ end
+ end
+ end
+ end
+ return nearestCharacter
+end
+
+local function attackBat(maxRange)
+ local target = getNearestEnemy(maxRange)
+ if not target then return end
+ local bat = equipBat()
+ if not bat then return end
+ pcall(function() bat:Activate() end)
+end
+
+local function StartAutoBat()
+ DisconnectConnection("AutoBat")
+ ApplyFixLagAuto()
+ Connections.AutoBat = RunService.Heartbeat:Connect(function()
+ if not Config.AutoBat then return end
+ attackBat(ATTACK_RANGE)
+ end)
+end
+
+local function StopAutoBat()
+ DisconnectConnection("AutoBat")
+end
+
+local function StartAutoAttackBloom()
+ DisconnectConnection("AutoAttackBloom")
+ ApplyFixLagAuto()
+ task.spawn(function()
+ while Config.AutoAttackBloom do
+ attackBat(99999)
+ task.wait(0.05)
+ end
+ end)
+end
+
+local function StopAutoAttackBloom()
+ DisconnectConnection("AutoAttackBloom")
+end
+
+local function EnableGodmode()
+ Config.Godmode = true
+ ApplyFixLagAuto()
+ ScanAllObjects()
+ local character = GetCharacter()
+ if character then
+ ReplaceHumanoid(character)
+ end
+ DisconnectConnection("CharacterAdded")
+ Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function(newChar)
+ if Config.Godmode then
+ task.spawn(function()
+ task.wait(0.5)
+ ReplaceHumanoid(newChar)
+ SetupAntiDie()
+ end)
+ end
+ end)
+ task.wait(0.1)
+ SetupAntiDie()
+ DisconnectConnection("Heartbeat")
+ Connections.Heartbeat = RunService.Heartbeat:Connect(function()
+ if not Config.Godmode then return end
+ local character = GetCharacter()
+ local humanoid = GetHumanoid(character)
+ if humanoid then
+ local targetSpeed = GetAdaptiveSpeed()
+ if math.abs(humanoid.WalkSpeed - targetSpeed) &gt; 0.1 then
+ humanoid.WalkSpeed = targetSpeed
+ end
+ end
+ end)
+end
+
+local function DisableGodmode()
+ Config.Godmode = false
+ DisconnectConnection("Heartbeat")
+ DisconnectConnection("CharacterAdded")
+ DisconnectConnection("HealthChanged")
+ local humanoid = GetHumanoid(GetCharacter())
+ if humanoid then
+ pcall(function() humanoid.WalkSpeed = 16 end)
+ end
+end
+
+local function EnableNoclip()
+ if Config.NoclipEnabled then return end
+ Config.NoclipEnabled = true
+ task.spawn(function()
+ while Config.NoclipEnabled and (Config.AutoStealBest or Config.Godmode) do
+ local char = GetCharacter()
+ if char then
+ for _, part in ipairs(char:GetDescendants()) do
+ if part:IsA("BasePart") then
+ part.CanCollide = false
+ end
+ end
+ end
+ task.wait()
+ end
+ end)
+end
+
+local function DisableNoclip()
+ Config.NoclipEnabled = false
+ local char = GetCharacter()
+ if char then
+ for _, part in ipairs(char:GetDescendants()) do
+ if part:IsA("BasePart") then
+ part.CanCollide = true
+ end
+ end
+ end
+end
+
+-- ================= AUTO STEAL BEST (CẬP NHẬT XẾP HẠNG) =================
+local function GetEggValueScore(prompt)
+ local text = string.lower(tostring(prompt.Name) .. " " .. tostring(prompt.ObjectText) .. " " .. tostring(prompt.ActionText))
+ local parentObj = prompt.Parent
+ while parentObj and parentObj ~= Workspace do
+ text = text .. " " .. string.lower(parentObj.Name)
+ for _, attr in ipairs({"Name", "DisplayName", "Type", "Rarity", "Value"}) do
+ local success, val = pcall(function() return parentObj:GetAttribute(attr) end)
+ if success and val then text = text .. " " .. string.lower(tostring(val)) end
+ end
+ parentObj = parentObj.Parent
+ end
+
+ -- Xếp hạng theo độ hiếm: Divine &gt; Eternal &gt; Secret &gt; Cosmic &gt; Mythic &gt; Legendary &gt; Epic &gt; Rare &gt; Uncommon &gt; Common
+ local priorityKeywords = {
+ {"divine", 100000},
+ {"eternal", 90000},
+ {"secret", 80000},
+ {"cosmic", 70000},
+ {"mythic", 60000},
+ {"mythical", 60000},
+ {"legendary", 50000},
+ {"epic", 40000},
+ {"rare", 30000},
+ {"uncommon", 20000},
+ {"common", 10000}
+ }
+
+ local score = 0
+ for _, pair in ipairs(priorityKeywords) do
+ if string.find(text, pair[1], 1, true) then
+ score = pair[2]
+ break
+ end
+ end
+
+ -- Cộng thêm điểm dựa trên số lượng pet trong tên (nếu có $xxx)
+ for word in string.gmatch(text, "%$(%d+)") do
+ local num = tonumber(word)
+ if num then score = score + num * 10 end
+ end
+
+ return score
+end
+
+local function FindBestEggPrompt()
+ local bestPrompt = nil
+ local maxScore = -1
+ for prompt in pairs(EggPromptCache) do
+ if prompt and prompt.Parent then
+ local score = GetEggValueScore(prompt)
+ if score &gt; maxScore then
+ maxScore = score
+ bestPrompt = prompt
+ end
+ else
+ EggPromptCache[prompt] = nil
+ end
+ end
+ return bestPrompt
+end
+
+local function FirePrompt(prompt)
+ if not prompt or not prompt:IsA("ProximityPrompt") or not prompt.Parent then return end
+ TargetPrompt = prompt
+ pcall(function()
+ prompt.MaxActivationDistance = 999999
+ prompt.RequiresLineOfSight = false
+ prompt.HoldDuration = 0
+ prompt.Enabled = true
+ if fireproximityprompt then fireproximityprompt(prompt) end
+ end)
+end
+
+local function FlyToPosition(targetPosition)
+ local char = GetCharacter()
+ if not char then return end
+ local root = GetRoot(char)
+ if not root then return end
+
+ EnableNoclip()
+
+ local flyHeight = Config.FlightHeight
+ local targetPosWithHeight = Vector3.new(targetPosition.X, flyHeight, targetPosition.Z)
+
+ local connection
+ connection = RunService.Heartbeat:Connect(function()
+ if not Config.AutoStealBest or not char.Parent or not root.Parent then
+ if connection then connection:Disconnect() end
+ return
+ end
+
+ local currentPos = root.Position
+ local direction = (targetPosWithHeight - currentPos)
+ local distance = direction.Magnitude
+
+ if distance &lt; 4 then
+ root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+ if connection then connection:Disconnect() end
+ return
+ end
+
+ local moveSpeed = GetAdaptiveSpeed()
+ root.AssemblyLinearVelocity = direction.Unit * moveSpeed
+ root.CFrame = CFrame.new(currentPos, Vector3.new(targetPosWithHeight.X, currentPos.Y, targetPosWithHeight.Z))
+ end)
+
+ while Config.AutoStealBest and char.Parent and root.Parent do
+ local currentPos = root.Position
+ if (currentPos - targetPosWithHeight).Magnitude &lt; 4 then
+ break
+ end
+ task.wait(0.05)
+ end
+
+ if connection then
+ connection:Disconnect()
+ end
+ if root and root.Parent then
+ root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+ end
+end
+
+local function StartAutoStealLoop()
+ DisconnectConnection("AutoStealLoop")
+ table.clear(EggPromptCache)
+ for _, object in ipairs(Workspace:GetDescendants()) do
+ if object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+ EggPromptCache[object] = true
+ ApplyInstantEggPrompt(object)
+ end
+ end
+
+ Connections.AutoStealLoop = task.spawn(function()
+ while Config.AutoStealBest do
+ local bestEgg = FindBestEggPrompt()
+ if bestEgg and bestEgg.Parent then
+ local eggPos = nil
+ if bestEgg.Parent:IsA("BasePart") then
+ eggPos = bestEgg.Parent.Position
+ elseif bestEgg.Parent:IsA("Model") then
+ pcall(function() eggPos = bestEgg.Parent:GetPivot().Position end)
+ end
+
+ if eggPos then
+ FlyToPosition(eggPos)
+ local char = GetCharacter()
+ local root = GetRoot(char)
+ local startTime = tick()
+ while root and (root.Position - Vector3.new(eggPos.X, Config.FlightHeight, eggPos.Z)).Magnitude &gt; 5 and (tick() - startTime) &lt; 3 and Config.AutoStealBest do
+ task.wait(0.05)
+ root = GetRoot(GetCharacter())
+ end
+
+ local attempt = 0
+ while bestEgg and bestEgg.Parent and attempt &lt; 5 and Config.AutoStealBest do
+ FirePrompt(bestEgg)
+ task.wait(0.15)
+ attempt = attempt + 1
+ end
+
+ if bestEgg and not bestEgg.Parent then EggPromptCache[bestEgg] = nil end
+ task.wait(0.1)
+
+ FlyToPosition(Config.BASE_POS)
+ end
+ end
+ task.wait(0.8)
+ end
+ DisableNoclip()
+ end)
+end
+
+local function StopAutoStealLoop()
+ DisconnectConnection("AutoStealLoop")
+ DisableNoclip()
+end
+
+-- Anti-Stuck / Anti-Fling
+RunService.Heartbeat:Connect(function()
+ local character = GetCharacter()
+ if not character then return end
+ local hrp = character:FindFirstChild("HumanoidRootPart")
+ local humanoid = character:FindFirstChildOfClass("Humanoid")
+ for _, item in ipairs(character:GetDescendants()) do
+ if item:IsA("BasePart") and item.Anchored then
+ pcall(function() item.Anchored = false end)
+ elseif item:IsA("WeldConstraint") or item:IsA("Weld") then
+ pcall(function()
+ local part0 = item.Part0
+ local part1 = item.Part1
+ local isExternal0 = part0 and not part0:IsDescendantOf(character)
+ local isExternal1 = part1 and not part1:IsDescendantOf(character)
+ if isExternal0 or isExternal1 then
+ item:Destroy()
+ end
+ end)
+ end
+ end
+ if hrp then
+ local maxLinear = 2000
+ local maxAngular = 100
+ if Config.Godmode then
+ maxLinear = 5000
+ maxAngular = 200
+ end
+ if hrp.AssemblyLinearVelocity.Magnitude &gt; maxLinear or hrp.AssemblyAngularVelocity.Magnitude &gt; maxAngular then
+ pcall(function()
+ hrp.AssemblyLinearVelocity = Vector3.zero
+ hrp.AssemblyAngularVelocity = Vector3.zero
+ end)
+ if humanoid then
+ pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+ pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Landed) end)
+ end
+ end
+ end
+end)
+
+-- ================= GIAO DIỆN =================
+local Window = WindUI:CreateWindow({
+ Title = "Vxz Script",
+ Icon = "shield",
+ Author = "Vxz Script",
+ Folder = "VxzScript",
+ Size = UDim2.fromOffset(580, 460),
+ Transparent = true,
+ Theme = "Light",
+ SideBarWidth = 190,
+ HasOutline = true
+})
+
+local MainTab = Window:Tab({
+ Title = "Main",
+ Icon = "home"
+})
+
+MainTab:Toggle({
+ Title = "Instant Prompt Egg",
+ Desc = " ",
+ Value = false,
+ Callback = function(value)
+ Config.InstantEgg = value
+ if value then StartInstantEgg() else StopInstantEgg() end
+ NotifyFeature("Instant Prompt Egg", value)
+ end
+})
+
+MainTab:Toggle({
+ Title = "Auto Steal Best Egg (High Value)",
+ Desc = "Tự động bay đến trứng giá trị cao (theo thứ hạng Divine→Eternal→Secret→Cosmic→Mythic) và bay về nhà",
+ Value = false,
+ Callback = function(value)
+ Config.AutoStealBest = value
+ if value then
+ if not Config.Godmode then
+ EnableGodmode()
+ end
+ StartAutoStealLoop()
+ else
+ StopAutoStealLoop()
+ end
+ NotifyFeature("Auto Steal Best Egg", value)
+ end
+})
+
+local SpeedTab = Window:Tab({
+ Title = "Speed Player",
+ Icon = "shield-check"
+})
+
+SpeedTab:Toggle({
+ Title = "Speed Boost",
+ Desc = "Boost cao giúp di chuyển cực nhanh với Humanoid mới.",
+ Value = false,
+ Callback = function(value)
+ if value then EnableGodmode() else DisableGodmode() end
+ NotifyFeature("Speed Boost", value)
+ end
+})
+
+SpeedTab:Slider({
+ Title = "Boost level",
+ Desc = "Mỗi 1 boost sẽ +40 tốc độ di chuyển (Max 30)",
+ Step = 1,
+ Value = {
+ Min = 1,
+ Max = 30,
+ Default = 1
+ },
+ Callback = function(value)
+ local number = tonumber(value)
+ if not number then number = 1 end
+ Config.BoostLevel = math.clamp(math.floor(number), 1, 30)
+ if Config.Godmode then
+ local hum = GetHumanoid(GetCharacter())
+ if hum then
+ hum.WalkSpeed = GetAdaptiveSpeed()
+ end
+ end
+ end
+})
+
+local PvPTab = Window:Tab({
+ Title = "PvP",
+ Icon = "swords"
+})
+
+PvPTab:Toggle({
+ Title = "Auto Bat",
+ Desc = " ",
+ Value = false,
+ Callback = function(value)
+ Config.AutoBat = value
+ if value then StartAutoBat() else StopAutoBat() end
+ NotifyFeature("Auto Bat", value)
+ end
+})
+
+PvPTab:Toggle({
+ Title = "ESP Player (Pro Edition)",
+ Desc = "Hiển thị tên, khoảng cách, tốc độ và thanh máu cực xịn",
+ Value = false,
+ Callback = function(value)
+ Config.EspPlayer = value
+ if value then StartPlayerESP() else StopPlayerESP() end
+ NotifyFeature("ESP Player", value)
+ end
+})
+
+local EventTab = Window:Tab({
+ Title = "Event",
+ Icon = "sparkles"
+})
+
+EventTab:Toggle({
+ Title = "Auto Attack Bloom",
+ Desc = "",
+ Value = false,
+ Callback = function(value)
+ Config.AutoAttackBloom = value
+ if value then StartAutoAttackBloom() else StopAutoAttackBloom() end
+ NotifyFeature("Auto Attack Bloom", value)
+ end
+})
+
+local SecurityTab = Window:Tab({
+ Title = "Security Player",
+ Icon = "shield-alert"
+})
+
+SecurityTab:Toggle({
+ Title = "Delete Trap",
+ Desc = "Xoá bẫy khỏi bản đồ",
+ Value = false,
+ Callback = function(value)
+ if value then EnableDeleteTrap() else DisableDeleteTrap() end
+ NotifyFeature("Delete Trap", value)
+ end
+})
+
+SecurityTab:Toggle({
+ Title = "Anti Trap [beta]",
+ Desc = "Đóng băng và vô hiệu hoá tương tác với bẫy",
+ Value = false,
+ Callback = function(value)
+ Config.AntiTrapBeta = value
+ NotifyFeature("Anti Trap [Beta]", value)
+ end
+})
+
+SecurityTab:Toggle({
+ Title = "Delete Treadmill",
+ Desc = "Xoá máy chạy bộ (Treadmill)",
+ Value = false,
+ Callback = function(value)
+ if value then EnableDeleteTreadmill() else DisableDeleteTreadmill() end
+ NotifyFeature("Delete Treadmill", value)
+ end
+})
+
+SecurityTab:Toggle({
+ Title = "ESP Trap",
+ Desc = "Định vị bẫy",
+ Value = false,
+ Callback = function(value)
+ if value then EnableTrapESP() else DisableTrapESP() end
+ NotifyFeature("ESP Trap", value)
+ end
+})
+
+SecurityTab:Toggle({
+ Title = "ESP Parasite",
+ Desc = "Định vị vật thể Parasite / parasites",
+ Value = false,
+ Callback = function(value)
+ if value then EnableParasiteESP() else DisableParasiteESP() end
+ NotifyFeature("ESP Parasite", value)
+ end
+})
+
+SecurityTab:Toggle({
+ Title = "Anti Ragdoll",
+ Desc = "Chống Ragdoll/té ngã",
+ Value = false,
+ Callback = function(value)
+ Config.AntiRagdoll = value
+ if value then StartAntiRagdoll() else StopAntiRagdoll() end
+ NotifyFeature("Anti Ragdoll", value)
+ end
+})
+
+local MiscTab = Window:Tab({
+ Title = "Misc",
+ Icon = "wrench"
+})
+
+MiscTab:Toggle({
+ Title = "Auto Fix Lag On Feature Enable",
+ Desc = "Tự động tối ưu giảm lag khi bật các chức năng",
+ Value = true,
+ Callback = function(value)
+ Config.AutoFixLagOnEnable = value
+ end
+})
+
+MiscTab:Button({
+ Title = "Fix Lag &amp; Max FPS",
+ Desc = "Fix lag | Booster Device",
+ Callback = function()
+ pcall(function()
+ local settingsObj = settings()
+ settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+ settingsObj.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+ for _, v in pairs(game:GetDescendants()) do
+ if v:IsA("BasePart") then
+ v.Material = Enum.Material.SmoothPlastic
+ elseif v:IsA("Decal") or v:IsA("Texture") then
+ v:Destroy()
+ elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+ v.Enabled = false
+ end
+ end
+ local lighting = game:GetService("Lighting")
+ lighting.GlobalShadows = false
+ lighting.FogEnd = 9e9
+ lighting.Technology = Enum.Technology.Compatibility
+ if setfpscap then setfpscap(9999999) end
+ end)
+ end
+})
+
+-- Quét ban đầu
+ScanAllObjects()
+ScanAllEggPrompts()
+
+Workspace.DescendantAdded:Connect(function(object)
+ if IsTrapObject(object) then
+ if Config.DeleteTrap then DeleteTrapObject(object) end
+ if Config.EspTrap then CreateTrapESP(object) end
+ elseif IsParasiteObject(object) then
+ if Config.EspParasite then CreateParasiteESP(object) end
+ end
+ if Config.AutoStealBest and object:IsA("ProximityPrompt") and IsEggPrompt(object) then
+ EggPromptCache[object] = true
+ end
+end)
+</p></div></div></pre>
+</body></html>
+------MultipartBoundary--bIqvOxqVhVbhxxxvbxBtSqXJOFw4jNFpJfXOQeu373----
+Content-Type: text/css
+Content-Transfer-Encoding: binary
+Content-Location: https://fonts.googleapis.com/css?family=Open+Sans:400,700
+
+@charset "utf-8";
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSKmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+460-52F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSumu0SC55K5gw.woff2") format("woff2"); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSOmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+1F00-1FFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSymu0SC55K5gw.woff2") format("woff2"); unicode-range: U+370-377, U+37A-37F, U+384-38A, U+38C, U+38E-3A1, U+3A3-3FF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS2mu0SC55K5gw.woff2") format("woff2"); unicode-range: U+307-308, U+590-5FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTVOmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+302-303, U+305, U+307-308, U+310, U+312, U+315, U+31A, U+326-327, U+32C, U+32F-330, U+332-333, U+338, U+33A, U+346, U+34D, U+391-3A1, U+3A3-3A9, U+3B1-3C9, U+3D1, U+3D5-3D6, U+3F0-3F1, U+3F4-3F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-208E, U+2090-209C, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTUGmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+1-C, U+E-1F, U+7F-9F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSCmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+102-103, U+110-111, U+128-129, U+168-169, U+1A0-1A1, U+1AF-1B0, U+300-301, U+303-304, U+308-309, U+323, U+329, U+1EA0-1EF9, U+20AB; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSGmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-mu0SC55I.woff2") format("woff2"); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSKmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+460-52F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSumu0SC55K5gw.woff2") format("woff2"); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSOmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+1F00-1FFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSymu0SC55K5gw.woff2") format("woff2"); unicode-range: U+370-377, U+37A-37F, U+384-38A, U+38C, U+38E-3A1, U+3A3-3FF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS2mu0SC55K5gw.woff2") format("woff2"); unicode-range: U+307-308, U+590-5FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTVOmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+302-303, U+305, U+307-308, U+310, U+312, U+315, U+31A, U+326-327, U+32C, U+32F-330, U+332-333, U+338, U+33A, U+346, U+34D, U+391-3A1, U+3A3-3A9, U+3B1-3C9, U+3D1, U+3D5-3D6, U+3F0-3F1, U+3F4-3F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-208E, U+2090-209C, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTUGmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+1-C, U+E-1F, U+7F-9F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSCmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+102-103, U+110-111, U+128-129, U+168-169, U+1A0-1A1, U+1AF-1B0, U+300-301, U+303-304, U+308-309, U+323, U+329, U+1EA0-1EF9, U+20AB; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSGmu0SC55K5gw.woff2") format("woff2"); unicode-range: U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+@font-face { font-family: "Open Sans"; font-style: normal; font-weight: 700; font-stretch: 100%; src: url("https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-mu0SC55I.woff2") format("woff2"); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+------MultipartBoundary--bIqvOxqVhVbhxxxvbxBtSqXJOFw4jNFpJfXOQeu373----
+Content-Type: text/css
+Content-Transfer-Encoding: binary
+Content-Location: cid:css-e5a21ce2-4713-4b12-951f-ed07e032f7d8@mhtml.blink
+
+@charset "utf-8";
+
+* { margin: 0px; font-family: Consolas, Menlo, Monaco, "Lucida Console", "Liberation Mono", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", monospace, serif; font-size: 13px; }
+
+pre { padding: 5px; white-space: pre-wrap; overflow-wrap: break-word; }
+------MultipartBoundary--bIqvOxqVhVbhxxxvbxBtSqXJOFw4jNFpJfXOQeu373------
